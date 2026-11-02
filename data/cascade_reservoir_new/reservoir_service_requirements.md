@@ -5,9 +5,9 @@ in multi-agent reinforcement learning for physically heterogeneous cascade
 reservoir operation*, Journal of Hydrology 679, 136160, **Table A.1, page 14**.  
 DOI: <https://doi.org/10.1016/j.jhydrol.2026.136160>.
 
-The companion CSV transcribes only the guaranteed-output and ecological-flow  
-columns from that table. The source identity and table locator are retained in  
-each row. These values are recorded as reported in the paper.
+The companion CSV contains reservoir IDs, paper reservoir IDs, guaranteed-output
+thresholds and ecological-flow thresholds. These values are recorded as reported
+in the paper; the source citation is documented above.
 
 | Repository ID | Paper ID | Guaranteed output (MW) | Ecological flow (m³/s) |
 | ------------- | -------- | ---------------------: | ---------------------: |
@@ -40,8 +40,9 @@ each row. These values are recorded as reported in the paper.
 
 `load_service_requirements: true` loads and validates this table even when  
 reward penalties are disabled. Enabling the penalties also requires loading the  
-table. Its SHA-256 and provenance appear in startup, episode, and evaluation  
-metadata. No other column of the paper's Table A.1 is imported.
+table. Its SHA-256, reservoir IDs, base and effective thresholds, and sensitivity
+scales appear in startup, episode, and evaluation metadata. No other column of
+the paper's Table A.1 is imported.
 
 The shared daily reward is cascade energy divided by maximum daily cascade  
 energy, minus two weighted averages of relative shortfalls. Each shortfall is  

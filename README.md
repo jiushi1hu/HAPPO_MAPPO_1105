@@ -325,7 +325,7 @@ sets guaranteed output to **0.50** and ecological flow to **0.70** of reference,
 reductions of 50% and 30% from the original requirements respectively. Multipliers always
 apply directly to the original CSV, so reductions do not compound. The reference
 CSV remains unchanged; effective and
-base values, multipliers and provenance are recorded in the run configuration
+base values, multipliers and the input file hash are recorded in the run configuration
 and service-requirement metadata. Adjusted values are labelled
 `sensitivity_adjusted`, rather than paper-reported requirements.
 

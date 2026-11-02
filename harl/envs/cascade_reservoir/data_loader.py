@@ -286,7 +286,7 @@ class ServiceRequirementsData:
         if not path.is_file():
             raise ValueError("Service requirements require " + str(path))
         required = ("reservoir_id", "paper_reservoir_id", "guaranteed_output_mw",
-                    "ecological_flow_m3s", "source_doi", "source_table")
+                    "ecological_flow_m3s")
         with path.open(encoding="utf-8-sig", newline="") as stream:
             reader = csv.DictReader(stream)
             headers = reader.fieldnames or []
@@ -329,12 +329,10 @@ class ServiceRequirementsData:
             setattr(self, 'base_' + field, base)
             setattr(self, field, values)
         self.paper_reservoir_ids = tuple(records[name]["paper_reservoir_id"] for name in IDS)
-        self.sources = {name: {k: records[name][k] for k in ("source_doi", "source_table")}
-                        for name in IDS}
         self.sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
 
     def metadata(self):
-        """Return JSON-compatible values and provenance without exposing arrays."""
+        """Return JSON-compatible values and the input hash without exposing arrays."""
         return dict(file=SERVICE_REQUIREMENTS_FILE, sha256=self.sha256,
                     reservoir_ids=list(IDS), paper_reservoir_ids=list(self.paper_reservoir_ids),
                     guaranteed_output_mw=self.guaranteed_output_mw.tolist(),
@@ -344,8 +342,7 @@ class ServiceRequirementsData:
                     threshold_scales=dict(self.threshold_scales),
                     time_basis="constant_daily_requirement", source_value_status="paper_reported",
                     value_status=("paper_reported" if all(scale == 1. for scale in self.threshold_scales.values())
-                                  else "sensitivity_adjusted"),
-                    sources={name: dict(source) for name, source in self.sources.items()})
+                                  else "sensitivity_adjusted"))
 
 
 class DailyLevelLimitsData:
