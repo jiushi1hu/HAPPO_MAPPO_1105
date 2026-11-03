@@ -1,5 +1,6 @@
 """Five-year cascade HAPPO with one complete episode per process-parallel lane."""
 import copy
+from pathlib import Path
 import random
 import time
 import numpy as np
@@ -48,7 +49,8 @@ class CascadeReservoirRunner(OnPolicyHARunner):
     """Independent reservoir actors, centralized critic, and uninterrupted episodes."""
 
     def __init__(self, data, physical_config, algo_args, seed, episode_log=None, step_log=None,
-                 periodic_windows=None, training_sampler=None, xld_log=None):
+                 periodic_windows=None, training_sampler=None, xld_log=None,
+                 trajectory_log=None, checkpoint_dir=None):
         seed = validate_seed(seed)
         self.data, self.physical_config = data, physical_config
         self.requested_args = copy.deepcopy(algo_args)
@@ -99,11 +101,14 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
         torch.use_deterministic_algorithms(True)
         self.reward_settings = reward_settings(physical_config)
-        self.value_normalizer = ValueNorm(1, device=self.device) if args['train']['use_valuenorm'] else None
+        # One centralized critic: five individual mixed returns and one legacy
+        # team-return output reserved for the existing accounting diagnostics.
+        self.critic_output_dim = self.num_agents + 1
+        self.value_normalizer = ValueNorm(self.critic_output_dim, device=self.device) if args['train']['use_valuenorm'] else None
         self.envs = [episode_environment(data, physical_config,
             self.windows[self.training_window_starts[0]], self.length, self.action_bins)]
         env = self.envs[0]
-        network_args = {**args['model'], **args['algo']}
+        network_args = {**args['model'], **args['algo'], 'critic_output_dim': self.critic_output_dim}
         self.actor = [HAPPO(network_args, env.observation_space[i], env.action_space[i], self.device)
                       for i in range(self.num_agents)]
         self.critic = VCritic(network_args, env.share_observation_space[0], self.device)
@@ -120,7 +125,16 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         self.episode_log = episode_log
         self.step_log = step_log
         self.xld_log = xld_log
-        self.diagnostics_enabled = bool(args['experiment'].get('diagnostics', False))
+        self.trajectory_log = trajectory_log
+        self.checkpoint_dir = None if checkpoint_dir is None else Path(checkpoint_dir)
+        interval = args['experiment'].get('checkpoint_interval', 0)
+        if isinstance(interval, (bool, np.bool_)) or not isinstance(interval, (int, np.integer)) or interval < 0:
+            raise ValueError('checkpoint_interval must be a nonnegative integer')
+        self.checkpoint_interval = int(interval)
+        if self.checkpoint_interval and self.checkpoint_dir is None:
+            raise ValueError('checkpoint_interval requires checkpoint output')
+        self.checkpoint_history = []
+        self.diagnostics_enabled = bool(args['experiment'].get('diagnostics', False) or trajectory_log is not None)
         self.joint_kl_info = None
         self.parallel_envs = None
         self.worker_pids = []
@@ -137,7 +151,8 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         self.actor_buffer = [OnPolicyActorBuffer({**args["train"], **args["model"]},
                              env.observation_space[i], env.action_space[i]) for i in range(5)]
         self.critic_buffer = OnPolicyCriticBufferEP(
-            {**args["train"], **args["model"], **args["algo"]}, env.share_observation_space[0])
+            {**args["train"], **args["model"], **args["algo"],
+             'critic_output_dim': self.critic_output_dim}, env.share_observation_space[0])
         for actor in self.actor:
             actor.actor_num_mini_batch = args["algo"]["actor_num_mini_batch"]
         self.critic.critic_num_mini_batch = args["algo"]["critic_num_mini_batch"]
@@ -175,6 +190,9 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                 self.action_bins, self.length, self.n_envs, self.algo_args['algo']['gamma'],
                 self.algo_args['algo']['gae_lambda'], self.seed)
         ids = list(range(self.episode_attempts+1, self.episode_attempts+self.n_envs+1))
+        if self.trajectory_log is not None:
+            self.trajectory_log.begin_batch(seed=self.seed, update=self.update_count+1,
+                episode_ids=ids, window_starts=years, source_years=self.batch_source_years)
         self.episode_attempts += self.n_envs
         self._allocate_buffers()
         self.prep_rollout()
@@ -198,6 +216,8 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                 results = self.parallel_envs.step(np.stack(actions, axis=1))
                 self._log_collected_steps(list(enumerate(results)), ids, t)
                 transitions = [r['transition'] for r in results]
+                if self.trajectory_log is not None:
+                    self.trajectory_log.capture(t, transitions)
                 done = np.array([r['done'] for r in results])
                 if not np.all(done == (t == self.length-1)):
                     raise RuntimeError('Unexpected early termination or incomplete parallel episode')
@@ -212,7 +232,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                              np.ones((self.n_envs, 1), dtype=np.float32))
                     b.active_masks[t] = controls[:, i:i+1]
                 cb.insert(state, _t2n(values),
-                    np.array([[r['reward']] for r in transitions], dtype=np.float32),
+                    np.asarray([np.r_[r['mixed_rewards'], r['reward']] for r in transitions], dtype=np.float32),
                     next_masks, np.ones_like(next_masks))
                 forced += int((controls == 0).sum())
                 largest_residual = max(largest_residual,
@@ -261,7 +281,9 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         predictions = cb.value_preds[:-1]
         if self.value_normalizer is not None:
             predictions = self.value_normalizer.denormalize(predictions)
-        targets = cb.returns[:-1]
+        # Retain the meaning of the original team-value fit summaries.
+        predictions = predictions[..., -1:]
+        targets = cb.returns[:-1, :, -1:]
         self.last_rollout.update(gae_target_mean=float(targets.mean()),
             value_prediction_mean=float(predictions.mean()),
             gae_target_rmse=float(np.sqrt(np.mean((targets-predictions)**2))),
@@ -297,6 +319,11 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                 actor_info, critic_info = super().train()
                 self.update_count += 1
                 self.training_steps += self.length*self.n_envs
+                if self.trajectory_log is not None:
+                    trajectory_summary = self.trajectory_log.write_batch(self, diagnostic_before,
+                        {i: buffer.factor for i, buffer in enumerate(self.actor_buffer)})
+                    log_episode(dict(trajectory_summary, record_type='trajectory_diagnostics',
+                                     seed=self.seed, update=self.update_count), self.episode_log)
                 row = dict(seed=self.seed, update=self.update_count, training_steps=self.training_steps,
                     elapsed_seconds=time.monotonic()-self.started, **self.last_rollout, **self.last_reward_metrics)
                 for i, info in enumerate(actor_info):
@@ -342,6 +369,14 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                         self.last_reward_metrics['episode_reward'],self.last_rollout['episode_energy_TWh']),flush=True)
                 if k % self.eval_interval == 0 or k == updates:
                     self.periodic_evaluation()
+                if self.checkpoint_dir is not None and (k == updates or
+                        (self.checkpoint_interval and k % self.checkpoint_interval == 0)):
+                    from harl.envs.cascade_reservoir.checkpoint import save_checkpoint
+                    self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                    checkpoint = save_checkpoint(self,
+                        self.checkpoint_dir / ('update_{:06d}.pt'.format(self.update_count)))
+                    self.checkpoint_history.append(checkpoint)
+                    log_episode(dict(checkpoint, record_type='policy_checkpoint'), self.episode_log)
             return dict(seed=self.seed, updates_completed=self.update_count, **self.evaluation_policy_metadata())
         finally:
             self.close()

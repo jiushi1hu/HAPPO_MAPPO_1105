@@ -18,8 +18,8 @@ use_daily_level_limits: true
 load_service_requirements: true
 # Current sensitivity experiment: guaranteed output 50%, ecological flow 70% of reference.
 # Each multiplier applies directly to the original CSV; use 1 to restore reference values.
-guaranteed_output_scale: 0.5
-ecological_flow_scale: 0.7
+guaranteed_output_scale: 1.0 #保证出力
+ecological_flow_scale: 1.0 #生态流量
 # Requirement-relative shortfalls averaged over each fixed active reservoir set.
 # Unit weights are prespecified tradeoffs, not calibrated or monetary costs.
 reward_penalties:

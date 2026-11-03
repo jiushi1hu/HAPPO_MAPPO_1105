@@ -43,8 +43,9 @@ def _step_sum(values, name):
 def step_record(transition, *, seed, episode, episode_step, phase, training_steps):
     """Key team metrics for one executed day, without a physical trajectory.
 
-    Reward and weighted penalty components are the actual undiscounted daily
-    values supplied to learning. Generation and physical shortfalls are sums
+    Reward and weighted penalty components retain the legacy undiscounted team
+    metric. Actors learn from mixed_rewards, recorded separately in episode
+    summaries. Generation and physical shortfalls are sums
     across the five reservoirs. An unavailable service measurement is None;
     a measured zero shortfall remains zero, even with reward penalties disabled.
     Values retain full precision until the CSV writer serializes them.
@@ -153,6 +154,7 @@ def episode_record(env, rewards, energy_by_reservoir, seed, episode, gamma,
         power_reward=power, **{k+'_penalty':v for k,v in costs.items()},
         total_soft_penalty=sum(costs.values()),
         total_reward=totals['episode_reward'], penalty_to_power_percent=percentages,
+        learning_rewards=rewards.learning_summary(),
         hard_constraint_failed=failed, hard_constraint_failure_rate=float(failed),
         hard_constraint_failure_rate_so_far=failed_episodes/float(episode),
         attempted_episodes=int(episode), failed_episodes_so_far=int(failed_episodes), failure=failure,

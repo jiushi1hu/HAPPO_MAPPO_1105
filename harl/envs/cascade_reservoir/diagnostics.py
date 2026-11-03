@@ -86,10 +86,13 @@ def before_update(runner):
         for name in ('obs', 'actions', 'action_log_probs', 'active_masks', 'masks'):
             require_finite('actor {} buffer {}'.format(i, name), getattr(buffer, name))
     prediction = cb.value_preds[:-1].copy()
+    next_prediction = cb.value_preds[1:].copy()
     if runner.value_normalizer is not None:
         prediction = runner.value_normalizer.denormalize(prediction)
+        next_prediction = runner.value_normalizer.denormalize(next_prediction)
     mc = monte_carlo_returns(cb.rewards, cb.masks, cb.gamma)
-    return dict(mc=mc, prediction=prediction, gae_targets=cb.returns[:-1].copy(),
+    return dict(mc=mc, prediction=prediction, next_prediction=next_prediction,
+                gae_targets=cb.returns[:-1].copy(),
                 actor_parameters=[parameter_snapshot(a.actor) for a in runner.actor],
                 critic_parameters=parameter_snapshot(runner.critic.critic),
                 distributions=[actor_distribution(a,b) for a,b in zip(runner.actor, runner.actor_buffer)])
@@ -98,8 +101,10 @@ def before_update(runner):
 @torch.no_grad()
 def after_update(runner, before):
     cb = runner.critic_buffer
-    mc_start = float(before['mc'][0,:,0].mean())
-    prediction_start = float(before['prediction'][0,:,0].mean())
+    # The last output is the retained legacy team return. Actor-specific
+    # learning diagnostics below use the first five outputs independently.
+    mc_start = float(before['mc'][0,:,-1].mean())
+    prediction_start = float(before['prediction'][0,:,-1].mean())
     prediction = runner.critic.get_values(
         cb.share_obs[:-1].reshape(-1, cb.share_obs.shape[-1]))
     prediction = prediction.cpu().numpy().reshape(cb.rewards.shape)
@@ -122,9 +127,9 @@ def after_update(runner, before):
         discounted_episode_reward=mc_start,
         episode_energy_TWh=runner.last_rollout['episode_energy_TWh'],
         critic_update=parameter_update(runner.critic.critic, before['critic_parameters']),
-        critic_mc_pre=fit_metrics(before['mc'], before['prediction']),
-        critic_mc_post=fit_metrics(before['mc'], prediction),
-        critic_gae_post=fit_metrics(cb.returns[:-1], prediction),
+        critic_mc_pre=fit_metrics(before['mc'][..., -1:], before['prediction'][..., -1:]),
+        critic_mc_post=fit_metrics(before['mc'][..., -1:], prediction[..., -1:]),
+        critic_gae_post=fit_metrics(cb.returns[:-1, :, -1:], prediction[..., -1:]),
         actors=[])
     from harl.envs.cascade_reservoir.learning_signal import learning_signal_report
     result['learning_signal'] = learning_signal_report(runner, before, prediction)

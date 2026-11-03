@@ -15,8 +15,10 @@ from harl.envs.cascade_reservoir.reward import REWARD_AGGREGATION, validate_disc
 
 PERIODIC_EVALUATION_DAYS = 1825
 _SCALAR_METRICS = ('evaluator_return', 'generation_MWh', 'generation_TWh',
-                   'guaranteed_output_penalty', 'ecological_flow_penalty')
-_VECTOR_METRICS = ('final_storage_m3', 'final_level_m')
+                   'guaranteed_output_penalty', 'ecological_flow_penalty',
+                   'system_evaluator_return', 'global_evaluator_return')
+_VECTOR_METRICS = ('final_storage_m3', 'final_level_m',
+                   'mixed_evaluator_returns', 'local_evaluator_returns')
 _VIOLATION_TERMS = ('guaranteed_output', 'ecological_flow')
 _VIOLATION_METRICS = tuple(term+suffix for term in _VIOLATION_TERMS
     for suffix in ('_violation_rate', '_violation_count', '_active_reservoir_days'))
@@ -178,6 +180,10 @@ def evaluate_periodic_policy(actors, data, physical_config, *, seed, evaluation_
             else:
                 final_storage = [measured[name+'_end_m3'] for name in IDS]
                 result.update(evaluator_return=measured['episode_reward'],
+                    system_evaluator_return=measured['episode_system_reward'],
+                    global_evaluator_return=measured['episode_global_reward'],
+                    mixed_evaluator_returns=measured['episode_mixed_rewards'],
+                    local_evaluator_returns=measured['episode_local_rewards'],
                     generation_MWh=measured['energy_MWh'], generation_TWh=measured['energy_TWh'],
                     guaranteed_output_penalty=measured['episode_penalty_guaranteed_output'],
                     ecological_flow_penalty=measured['episode_penalty_ecological_flow'],

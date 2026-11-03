@@ -11,6 +11,8 @@ from harl.envs.cascade_reservoir.periodic_evaluation import (
 from harl.envs.cascade_reservoir.training_metrics import log_episode, StepMetricsWriter, STEP_METRIC_FIELDS
 from harl.envs.cascade_reservoir.training_sampler import TrainingWindowSampler, validate_sampling_mode
 from harl.envs.cascade_reservoir.xld_diagnostics import XLDDispatchWriter, XLD_DIAGNOSTIC_FIELDS
+from harl.envs.cascade_reservoir.trajectory_diagnostics import (
+    TrajectoryDiagnosticsWriter, TRAJECTORY_DIAGNOSTIC_FIELDS)
 from harl.runners.cascade_reservoir_runner import CascadeReservoirRunner
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -42,6 +44,22 @@ def plot_output_paths(episode_log):
                 violations=path.with_name(path.stem+'_violation_rates.png'))
 
 
+def trajectory_diagnostics_paths(episode_log, seeds, enabled=False):
+    """Optional linked daily learning signals, kept separate from legacy metrics."""
+    if not enabled or episode_log is None:
+        return {}
+    path = Path(episode_log)
+    return {seed: path.with_name(path.stem+'_seed'+str(seed)+'_trajectory.csv') for seed in seeds}
+
+
+def checkpoint_directories(episode_log, seeds, enabled=False):
+    """New per-seed directories for inference checkpoints; never training resume."""
+    if not enabled or episode_log is None:
+        return {}
+    path = Path(episode_log)
+    return {seed: path.with_name(path.stem+'_seed'+str(seed)+'_checkpoints') for seed in seeds}
+
+
 def check_episode_inputs(data,physical,years,days,bins):
     """Validate the episode view and reset observations, without a future-flow solver."""
     env=episode_environment(data,physical,years,days,bins)
@@ -71,12 +89,25 @@ def run_parallel_experiment(data,physical,config,args):
         raise ValueError('XLD diagnostics require --episode-log')
     if xld_enabled and data.service_requirements is None:
         raise ValueError('XLD diagnostics require loaded service requirements')
+    trajectory_enabled=config['experiment'].get('trajectory_diagnostics',False)
+    checkpoints_enabled=config['experiment'].get('save_checkpoints',False)
+    if not isinstance(trajectory_enabled,bool) or not isinstance(checkpoints_enabled,bool):
+        raise ValueError('trajectory_diagnostics and save_checkpoints must be booleans')
+    if (trajectory_enabled or checkpoints_enabled) and args.episode_log is None:
+        raise ValueError('Trajectory diagnostics and checkpoints require --episode-log')
+    checkpoint_interval=config['experiment'].get('checkpoint_interval',0)
+    if (isinstance(checkpoint_interval,bool) or not isinstance(checkpoint_interval,int) or
+            checkpoint_interval < 0 or (checkpoint_interval and not checkpoints_enabled)):
+        raise ValueError('checkpoint_interval must be nonnegative and requires checkpoint output when positive')
     daily_paths=step_metrics_paths(args.episode_log,config['experiment']['seeds'])
     xld_paths=xld_dispatch_paths(args.episode_log,config['experiment']['seeds'],xld_enabled)
+    trajectory_paths=trajectory_diagnostics_paths(args.episode_log,config['experiment']['seeds'],trajectory_enabled)
+    checkpoint_dirs=checkpoint_directories(args.episode_log,config['experiment']['seeds'],checkpoints_enabled)
     figure_paths={} if args.no_plot else plot_output_paths(args.episode_log)
     periodic_windows=select_periodic_windows(data)
     for path in (([] if args.episode_log is None else [args.episode_log])+
-                 list(daily_paths.values())+list(xld_paths.values())+list(figure_paths.values())):
+                 list(daily_paths.values())+list(xld_paths.values())+list(figure_paths.values())+
+                 list(trajectory_paths.values())+list(checkpoint_dirs.values())):
         if path.exists():
             raise ValueError('Output file already exists: '+str(path))
     evaluation_years=list(data.evaluation_years)
@@ -89,6 +120,15 @@ def run_parallel_experiment(data,physical,config,args):
     sources=sorted(list((ROOT/'harl').rglob('*.py'))+list((ROOT/'examples').glob('*.py'))+
                    list((ROOT/'harl/configs').rglob('*.yaml')))
     metadata=dict(record_type='run_configuration',collection_mode='five_year_parallel',
+        learning_reward_architecture=dict(alpha=0.5,
+            actor_reward='0.5 * own local reward + 0.5 * global generation reward',
+            local_reward='own power / installed capacity - own weighted relative service deficits',
+            system_reward='0.5 * sum(local rewards) + 0.5 * global generation reward',
+            critic='one centralized network: five mixed-return outputs plus one legacy-team diagnostic output',
+            actor_advantages='own mixed-return GAE and own value output; normalize each channel independently',
+            legacy_metrics='existing reward, CSV metrics and plot curves retain their team-reward definitions',
+            update_interpretation='individual-objective sequential clipped surrogates with original likelihood factors; '
+                'the common-return HAPPO improvement guarantee is not asserted for system accounting'),
         episode_horizon_days=days,parallel_environments=count,collector_backend='spawn worker processes',
         episodes_per_seed=episodes,updates_per_seed=episodes//count,
         collector_steps_per_update=days*count,collector_steps_per_seed=days*episodes,
@@ -109,6 +149,19 @@ def run_parallel_experiment(data,physical,config,args):
             violation_rate_units='fraction (plots display percent)',
             role='fixed training-only convergence diagnostics; held-out years are reserved for final evaluation'),
         figure_paths={name:str(path.resolve()) for name,path in figure_paths.items()},
+        trajectory_diagnostics=dict(enabled=trajectory_enabled,
+            scope='collected training trajectories only; one row per day, environment lane and reservoir',
+            files={str(seed):str(path.resolve()) for seed,path in trajectory_paths.items()},
+            columns=list(TRAJECTORY_DIAGNOSTIC_FIELDS),
+            values='frozen before optimization and before ValueNorm statistics change',
+            advantages='own mixed reward channel; exact configured normalization and actor-entry HAPPO factor',
+            monte_carlo='realized sampled reward-to-go, not true expected values or true advantages',
+            summary_windows=['all_days','first_14_days','october_may'],
+            updates='observational only; no reward, action, optimizer or normalization changes'),
+        policy_checkpoints=dict(enabled=checkpoints_enabled, interval_updates=checkpoint_interval,
+            directories={str(seed):str(path.resolve()) for seed,path in checkpoint_dirs.items()},
+            schedule='final completed update and every N updates if interval is positive',
+            purpose='deterministic evaluation replay; training resume is not implemented'),
         xld_dispatch_diagnostics=dict(enabled=xld_enabled, reservoir='XLD',
             scope='every XLD day in the final scheduled periodic evaluation and final held-out evaluation only',
             training_rows_written=False, files={str(seed):str(path.resolve()) for seed,path in xld_paths.items()},
@@ -150,6 +203,7 @@ def run_parallel_experiment(data,physical,config,args):
         stream=None
         daily_writers={}
         xld_writers={}
+        trajectory_writers={}
         if args.episode_log is not None:
             args.episode_log.parent.mkdir(parents=True,exist_ok=True)
             stream=outputs.enter_context(args.episode_log.open('x',encoding='utf-8'))
@@ -157,12 +211,16 @@ def run_parallel_experiment(data,physical,config,args):
                 path.open('x',encoding='utf-8',newline=''))) for seed,path in daily_paths.items()}
             xld_writers={seed:XLDDispatchWriter(outputs.enter_context(
                 path.open('x',encoding='utf-8',newline=''))) for seed,path in xld_paths.items()}
+            trajectory_writers={seed:outputs.enter_context(TrajectoryDiagnosticsWriter(path))
+                                for seed,path in trajectory_paths.items()}
         log_episode(metadata,stream)
         runners=[]
         for seed in config['experiment']['seeds']:
             runner=CascadeReservoirRunner(data,physical,config,seed,episode_log=stream,
                                           step_log=daily_writers.get(seed),periodic_windows=periodic_windows,
-                                          training_sampler=training_samplers[seed],xld_log=xld_writers.get(seed))
+                                          training_sampler=training_samplers[seed],xld_log=xld_writers.get(seed),
+                                          trajectory_log=trajectory_writers.get(seed),
+                                          checkpoint_dir=checkpoint_dirs.get(seed))
             runner.run(episodes,interval)
             runners.append(runner)
         evaluations=[] if args.skip_final_evaluation else [row for runner in runners for row in runner.final_evaluation()]
@@ -176,6 +234,7 @@ def run_parallel_experiment(data,physical,config,args):
                 for row in runner.periodic_evaluation_history) for runner in runners],
             training_sampling_coverage_per_seed=[runner.training_coverage_summary() for runner in runners],
             final_policy_metadata=[runner.evaluation_policy_metadata() for runner in runners],
+            policy_checkpoints=[checkpoint for runner in runners for checkpoint in runner.checkpoint_history],
             evaluation_skipped=bool(args.skip_final_evaluation),evaluations=evaluations)
         log_episode(result,stream)
         if not args.no_plot:
@@ -191,5 +250,6 @@ def run_parallel_experiment(data,physical,config,args):
                                      '--violations-output',str(figure_paths['violations'])])
             subprocess.run(plot_command,
                 input=json.dumps(payload,allow_nan=False),text=True,check=True)
-    print('Finished multi-year experiment. Model persistence/resume is not implemented; '
+    print('Finished multi-year experiment. Training resume is not implemented; '
+          'evaluation checkpoints are saved when --save-checkpoints is enabled. '
           'JSONL summaries and per-seed daily metrics CSVs are saved with --episode-log.',flush=True)

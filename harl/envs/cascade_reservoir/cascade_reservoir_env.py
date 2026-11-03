@@ -194,5 +194,5 @@ class CascadeReservoirEnv:
         self.index += 1
         done = self.index == self.stop
         obs,state,available = self._observations()
-        return obs,state,np.full((5,1),result['reward'],dtype=np.float32), \
+        return obs,state,result['mixed_rewards'].astype(np.float32).reshape(5,1), \
             np.full(5,done,dtype=bool),infos,available

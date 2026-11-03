@@ -29,6 +29,11 @@ class OnPolicyCriticBufferEP:
         self.gae_lambda = args["gae_lambda"]
         self.use_gae = args["use_gae"]
         self.use_proper_time_limits = args["use_proper_time_limits"]
+        output_dim = args.get("critic_output_dim", 1)
+        if (isinstance(output_dim, (bool, np.bool_)) or
+                not isinstance(output_dim, (int, np.integer)) or output_dim < 1):
+            raise ValueError("critic_output_dim must be a positive integer")
+        self.critic_output_dim = int(output_dim)
 
         share_obs_shape = get_shape_from_obs_space(share_obs_space)
         # Buffer for share observations
@@ -39,17 +44,17 @@ class OnPolicyCriticBufferEP:
 
         # Buffer for value predictions made by this critic
         self.value_preds = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32
+            (self.episode_length + 1, self.n_rollout_threads, self.critic_output_dim), dtype=np.float32
         )
 
         # Buffer for returns calculated at each timestep
         self.returns = np.zeros(
-            (self.episode_length + 1, self.n_rollout_threads, 1), dtype=np.float32
+            (self.episode_length + 1, self.n_rollout_threads, self.critic_output_dim), dtype=np.float32
         )
 
         # Buffer for rewards received by agents at each timestep
         self.rewards = np.zeros(
-            (self.episode_length, self.n_rollout_threads, 1), dtype=np.float32
+            (self.episode_length, self.n_rollout_threads, self.critic_output_dim), dtype=np.float32
         )
 
         # Buffer for masks indicating whether an episode is done at each timestep
@@ -66,6 +71,9 @@ class OnPolicyCriticBufferEP:
         self, share_obs, value_preds, rewards, masks, bad_masks
     ):
         """Insert data into buffer."""
+        expected = (self.n_rollout_threads, self.critic_output_dim)
+        if np.shape(value_preds) != expected or np.shape(rewards) != expected:
+            raise ValueError("Critic values and rewards must match every rollout lane and reward channel")
         self.share_obs[self.step + 1] = share_obs.copy()
         self.value_preds[self.step] = value_preds.copy()
         self.rewards[self.step] = rewards.copy()
@@ -75,11 +83,13 @@ class OnPolicyCriticBufferEP:
         self.step = (self.step + 1) % self.episode_length
 
     def compute_returns(self, next_value, value_normalizer=None):
-        """Compute returns either as discounted sum of rewards, or using GAE.
+        """Compute independent reward-channel returns with shared episode boundaries.
         Args:
             next_value: (np.ndarray) value predictions for the step after the last episode step.
             value_normalizer: (ValueNorm) If not None, ValueNorm value normalizer instance.
         """
+        if np.shape(next_value) != (self.n_rollout_threads, self.critic_output_dim):
+            raise ValueError("Critic bootstrap must match every rollout lane and reward channel")
         if (
             self.use_proper_time_limits
         ):  # consider the difference between truncation and termination
@@ -208,8 +218,8 @@ class OnPolicyCriticBufferEP:
         # (episode_length + 1, n_rollout_threads, *share_obs_shape) --> (episode_length, n_rollout_threads, *share_obs_shape)
         # --> (episode_length * n_rollout_threads, *share_obs_shape)
         share_obs = self.share_obs[:-1].reshape(-1, *self.share_obs.shape[2:])
-        value_preds = self.value_preds[:-1].reshape(-1, 1)
-        returns = self.returns[:-1].reshape(-1, 1)
+        value_preds = self.value_preds[:-1].reshape(-1, self.critic_output_dim)
+        returns = self.returns[:-1].reshape(-1, self.critic_output_dim)
         masks = self.masks[:-1].reshape(-1, 1)
 
         for indices in sampler:

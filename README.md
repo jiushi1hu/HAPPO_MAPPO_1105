@@ -3,6 +3,8 @@
 Daily operation of the WDD, BHT, XLD, XJB and THR reservoir cascade, based on
 PKU-MARL HARL. Five independent categorical actors use one centralized critic.
 The environment resolves releases upstream to downstream with zero travel delay.
+Each actor learns from its own 50/50 local/global reward. The original team
+reward remains available for evaluation, daily CSVs and historical plots.
 
 ## Current experiment
 
@@ -39,8 +41,9 @@ Use a new log filename for every run; existing files are never overwritten.
 For console-only execution, replace `--plot-python ...` with `--no-plot`.
 
 Launch the file-backed entry point above so spawned workers can re-import
-the main module. Model persistence/resume is not implemented; start a fresh
-run to use changed source or settings. Metrics are saved only when an
+the main module. Training resume is not implemented; start a fresh
+run to use changed source or settings. Optional evaluation checkpoints are
+described below. Metrics are saved only when an
 `--episode-log` path is supplied. With plotting enabled, all three figures are
 automatically saved beside the log before their windows open:
 
@@ -69,7 +72,7 @@ penalty, ecological-flow penalty, generation (MWh), guaranteed-output shortfall
 (MW and MWh), and ecological-flow shortfall (m3/s and m3).
 
 Generation and physical deficits are summed over the five reservoirs. Penalties
-use the weights and reservoir means from the reward function. Daily rewards
+use the weights and reservoir means from the legacy team reward. Daily CSV rewards
 are undiscounted; apply `gamma**(episode_step-1)` to recover the discounted
 episode total. CSV values use 10 significant digits; internal training and
 summary calculations retain full precision. An unavailable service measurement
@@ -155,7 +158,7 @@ reward settings. CLI arguments override their corresponding YAML values.
 | Gamma / GAE lambda | 0.99 / 0.95 |
 | PPO clip / entropy coefficient | 0.2 / 0.001 |
 | Maximum gradient norm | 0.5 |
-| ValueNorm / shared advantage normalization | Enabled / enabled |
+| ValueNorm / per-actor advantage normalization | Enabled / enabled |
 | Actor / joint KL limits | Disabled unless requested |
 | Daily water-level limits | New action-date CSV, enabled |
 | Periodic evaluation interval / scenarios | Every update / 3 fixed training-only windows |
@@ -172,11 +175,17 @@ the critic receives 38 centralized state values:
 
 ```text
 Each actor: 15 -> 64 -> 128 -> 256 -> 256 -> 100 categorical logits
-Critic:     38 -> 64 -> 128 -> 256 -> 256 -> 1 value
+Critic:     38 -> 64 -> 128 -> 256 -> 256 -> 6 values
 ```
 
 Each network has separate weights. Hidden layers use
 `Linear -> ReLU -> LayerNorm`; logits and the final value remain linear.
+The critic is one shared network. Outputs 0--4 estimate WDD/BHT/XLD/XJB/THR
+mixed returns; output 5 estimates the legacy team return for existing diagnostics.
+ValueNorm tracks each output separately. GAE uses the matching reward and value
+channel; actor i receives only its own advantage column. The existing
+`normalize_shared_advantages` setting now normalizes each actor's channel over
+the common rollout rows independently, before controllability masks.
 `--no-daily-level-limits` selects global operating bounds only, with input
 dimensions 11/18.
 
@@ -465,7 +474,37 @@ u = k / (K - 1)
 release = feasible_low + u^2 * (feasible_high - feasible_low)
 ```
 
-Daily team reward is normalized generation minus mean relative guaranteed-output
+Each actor's learning reward uses the paper's local/global mixing structure,
+with alpha fixed at 0.5:
+
+```text
+local_i = power_i / installed_capacity_i
+          - guaranteed_output_weight * relative_power_deficit_i
+          - ecological_flow_weight * relative_flow_deficit_i
+global = sum(power_i) / sum(installed_capacity_i)
+mixed_i = 0.5 * local_i + 0.5 * global
+system = 0.5 * sum(local_i) + 0.5 * global
+```
+
+Local penalties use each reservoir's own requirement-relative deficit, without
+averaging over reservoirs. Existing effective thresholds, weights and penalty
+enablement are reused. Zero requirements remain inactive. The requested global
+term is generation only; no navigation or action-correction penalty is added.
+System accounting includes the global term once and is not the sum of mixed
+rewards. Episode JSONL records include discounted per-reservoir local/mixed
+totals and system/global totals; periodic and final evaluations report them too.
+
+The five centralized value outputs are an implementation choice for estimating
+the five learning returns, not five independent critics or a critic organization
+explicitly prescribed by the paper. The sixth output preserves legacy team
+critic-fit diagnostics. HAPPO's command ratios, scalar sequential factors,
+clipping, update order and control masks are retained. The unchanged importance
+factor reweights preceding actors' action distributions for each actor's own
+surrogate. Since these rewards define individual objectives, the common-return
+HAPPO improvement guarantee is not asserted for the system-accounting metric;
+an individual reward increase need not increase that metric.
+
+The preserved daily team reward is normalized generation minus mean relative guaranteed-output
 and ecological-flow deficits, each with weight 1. Generation is normalized by
 1,624,800 MWh. Requirements and their source are retained in
 `reservoir_service_requirements.csv`. `--no-reward-penalties` selects a separate
@@ -477,6 +516,79 @@ energy remain undiscounted. Episode generation and return are totals over the
 whole horizon. Soft costs express a tradeoff; hard feasibility does not imply
 zero service shortfalls.
 
+## Daily water-value diagnostics and saved-policy replay
+
+`--trajectory-diagnostics` links all five reservoirs' physical decisions to the
+actual mixed-reward training signals. It implies `--diagnostics` and requires a
+new `--episode-log`. A separate `<stem>_seedN_trajectory.csv` contains one row
+per training day, lane and reservoir. Existing team metrics and XLD evaluation
+diagnostics keep their definitions and output files.
+
+Each row records start/end storage and levels, physical inflow/release/turbine
+flow/spill/head/power, feasible release bounds, sampled and effective commands,
+local/global/mixed rewards, service deficits, frozen own current/next values,
+TD residual, GAE target, raw and normalized advantage, realized reward-to-go,
+action probability, entropy, objective weight and the exact HAPPO factor at
+that actor's sequential update entry. Values are frozen before optimization
+and before ValueNorm moments change. Forced commands retain their sampled
+probability separately from the effective action/log-probability placeholders;
+their policy-objective weight is zero.
+Global, system and legacy-team reward fields repeat across the five reservoir
+rows for the same day/lane. Count each of those scalars once per day/lane when
+reconstructing system accounting; do not sum their repeated CSV cells.
+
+JSONL `trajectory_diagnostics` records summarize all days, the first 14 days,
+and calendar months October-May separately for each reservoir. Daily rows are
+correlated, realized Monte Carlo returns are not true expected values, and a
+positive advantage on a spilling day alone does not prove that spill was
+avoidable or caused the advantage. These are observational measurements;
+no reward, action, critic target or optimizer decision changes.
+
+Tracing every update at the standard 300-episode budget produces 2,737,500 rows
+per seed. Begin with a short diagnostic run, for example two updates:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_cascade.py \
+  --episodes 12 --episode-days 1825 --parallel-envs 6 \
+  --action-bins 200 --seeds 1 --gamma 1 --eval-interval 1 \
+  --window-sampling coverage_balanced \
+  --trajectory-diagnostics --save-checkpoints --checkpoint-interval 1 \
+  --xld-diagnostics --skip-final-evaluation --no-plot \
+  --episode-log "runs/water_value_diagnostic_$(date +%Y%m%d_%H%M%S).jsonl"
+```
+
+`--save-checkpoints` requires `--episode-log` and saves the final update into
+`<stem>_seedN_checkpoints/update_000002.pt` in this example. Add
+`--checkpoint-interval N` to also save every N completed updates; its default
+0 saves only the final update. Files and existing checkpoint directories are
+never overwritten. Checkpoints contain all five actors, the single centralized
+six-output critic, ValueNorm, effective settings and source/data hashes. They
+support evaluation replay, not training resume.
+
+Replay a saved policy on an ordered training-only or held-out-only source
+sequence without changing data or fitting models:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/replay_cascade_checkpoint.py \
+  --checkpoint runs/EXPERIMENT_seed1_checkpoints/update_000002.pt \
+  --source-years 2007 2008 2009 2010 2011 \
+  --output runs/EXPERIMENT_baseline_replay.csv
+```
+
+Repeat with a new output path and `--override-action 1 BHT 16` to replace just
+the first BHT command. Later commands follow the same saved policy as it reacts
+to the changed state. The summary reports energy, service deficits, all five
+learning returns, system return, spill and final storage. The five-row-per-day
+CSV links physical dispatch to saved values and realized mixed reward-to-go;
+it does not reconstruct training advantages. Comparing baseline and deviation
+under the same forcing measures that particular intervention, not optimality.
+
+Replay requires the saved episode horizon, preserving the policy's remaining
+time feature and terminal semantics. It rejects source/config or dataset hash
+mismatches. A 16-day smoke-test checkpoint therefore replays 16 days, while a
+production checkpoint replays its full 1,825 days. Year-specific initial storage
+comes from the fingerprinted dataset; no full-storage reset is substituted.
+
 ## Source and output structure
 
 | File or directory | Responsibility |
@@ -485,8 +597,11 @@ zero service shortfalls.
 | `examples/train_cascade_parallel.py` | Episode checks, fixed scenarios, seed orchestration, logging and final evaluation |
 | `examples/plot_cascade.py` | Interactive backend availability check |
 | `examples/plot_cascade_parallel.py` | Separate unsmoothed collector and evaluator figures from launch payloads or JSONL |
+| `examples/replay_cascade_checkpoint.py` | Frozen-policy replay and isolated command-deviation comparisons |
 | `harl/runners/cascade_reservoir_runner.py` | Parallel collection, unchanged HAPPO updates, periodic and final evaluation |
 | `harl/envs/cascade_reservoir/periodic_evaluation.py` | Fixed training-only scenarios, state isolation, window metrics and failure accounting |
+| `harl/envs/cascade_reservoir/trajectory_diagnostics.py` | Optional per-reservoir physical and frozen learning traces |
+| `harl/envs/cascade_reservoir/checkpoint.py` | Evaluation checkpoint persistence, strict provenance checks and deterministic replay |
 | `harl/runners/on_policy_ha_runner.py` | Sequential HAPPO updates and likelihood factors |
 | `harl/algorithms/` | Actor and critic objectives, optimizer steps and optional KL controls |
 | `harl/envs/cascade_reservoir/` | Data, episode views, workers, current-transition physics, reward and training diagnostics |
@@ -499,7 +614,7 @@ collected before an update. They begin after collection and have no fabricated
 episode-zero point. Sampled inflow windows affect their variation.
 
 New JSONL records use `run_configuration`, `training_episode`,
-`training_update`, `training_diagnostics`,
+`training_update`, `training_diagnostics`, optional `trajectory_diagnostics` and `policy_checkpoint`,
 `periodic_evaluation`, `final_evaluation_sequence` and `run_complete`.
 Per-episode records include source years, dates and the actual horizon;
 generation units refer to the full episode. Historical files in `runs/` and

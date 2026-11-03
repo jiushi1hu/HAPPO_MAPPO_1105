@@ -54,6 +54,8 @@ def _attach_evaluation_progress(error, env, rewards, energy, xld_metrics=None):
         date=env.data.dates[min(env.index, env.stop-1)].isoformat(),
         partial_storage_m3=env.storage.tolist(),
         partial_metrics=dict(evaluator_return=totals['episode_reward'],
+            system_evaluator_return=totals['episode_system_reward'],
+            global_evaluator_return=totals['episode_global_reward'],
             generation_MWh=float(energy), generation_TWh=float(energy/1e6),
             guaranteed_output_penalty=totals['episode_penalty_guaranteed_output'],
             ecological_flow_penalty=totals['episode_penalty_ecological_flow']))

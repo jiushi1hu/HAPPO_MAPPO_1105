@@ -40,9 +40,14 @@ class OnPolicyHARunner(OnPolicyBaseRunner):
                 self.critic_buffer.returns[:-1] - self.critic_buffer.value_preds[:-1]
             )
 
-        # Optional team normalization before controllability masks are applied.
+        if advantages.shape[-1] not in (1, self.num_agents + 1):
+            raise ValueError('Expected one legacy return or one mixed return per actor plus a legacy return')
+
+        # Normalize each reward channel independently over common rollout rows.
+        # The existing flag controls the normalization scope, not reward sharing.
         if self.algo_args["algo"].get("normalize_shared_advantages", False):
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
+            advantages = ((advantages - advantages.mean(axis=(0, 1), keepdims=True)) /
+                          (advantages.std(axis=(0, 1), keepdims=True) + 1e-5))
 
         if self.fixed_order:
             agent_order = list(range(self.num_agents))
@@ -80,8 +85,13 @@ class OnPolicyHARunner(OnPolicyBaseRunner):
             train_options = ({'diagnostics': True} if getattr(self, 'diagnostics_enabled', False) else {})
             if joint_budget is not None:
                 train_options['joint_kl_guard'] = joint_budget.for_actor(agent_id)
+            # The likelihood factor remains scalar and unchanged. Each actor
+            # optimizes its own mixed-return surrogate, using its own value/GAE
+            # channel. This does not imply improvement of the system accounting
+            # return as in common-payoff HAPPO's advantage decomposition.
+            channel = 0 if advantages.shape[-1] == 1 else agent_id
             actor_train_info = self.actor[agent_id].train(
-                self.actor_buffer[agent_id], advantages.copy(), "EP",
+                self.actor_buffer[agent_id], advantages[..., channel:channel+1].copy(), "EP",
                 **train_options
             )
 

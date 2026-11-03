@@ -17,7 +17,8 @@ from harl.envs.cascade_reservoir.reward import reward_settings, validate_discoun
 from harl.envs.cascade_reservoir.training_sampler import SAMPLING_MODES, validate_sampling_mode
 from harl.runners.cascade_reservoir_runner import validate_gae_lambda, validate_seed
 from examples.train_cascade_parallel import (
-    run_parallel_experiment, step_metrics_paths, plot_output_paths, xld_dispatch_paths)
+    run_parallel_experiment, step_metrics_paths, plot_output_paths, xld_dispatch_paths,
+    trajectory_diagnostics_paths, checkpoint_directories)
 
 
 def load_configuration():
@@ -73,6 +74,12 @@ def main():
     parser.add_argument('--check-data-only',action='store_true',
                         help='Check data, episode calendars and observations without training')
     parser.add_argument('--diagnostics',action='store_true',help='Record learning signals on collected training episodes')
+    parser.add_argument('--trajectory-diagnostics',action='store_true',
+                        help='Link all five reservoirs daily physics to frozen own values/advantages; implies --diagnostics and requires --episode-log')
+    parser.add_argument('--save-checkpoints',action='store_true',
+                        help='Save final-policy actors, centralized critic and value normalization for evaluation replay; requires --episode-log')
+    parser.add_argument('--checkpoint-interval',type=int,default=0,
+                        help='Also save every N completed updates; 0 saves only the final policy; requires --save-checkpoints')
     parser.add_argument('--xld-diagnostics',action='store_true',
                         help='Save daily XLD dispatch diagnostics for the final policy on fixed and held-out evaluation windows; requires --episode-log')
     parser.add_argument('--skip-final-evaluation',action='store_true',help='Reserve evaluation years during tuning')
@@ -83,6 +90,12 @@ def main():
     args = parser.parse_args()
     if args.xld_diagnostics and args.episode_log is None:
         parser.error('--xld-diagnostics requires --episode-log')
+    if (args.trajectory_diagnostics or args.save_checkpoints) and args.episode_log is None:
+        parser.error('--trajectory-diagnostics and --save-checkpoints require --episode-log')
+    if args.checkpoint_interval < 0:
+        parser.error('--checkpoint-interval must be nonnegative')
+    if args.checkpoint_interval and not args.save_checkpoints:
+        parser.error('--checkpoint-interval requires --save-checkpoints')
     if args.episode_log is not None and args.episode_log.exists():
         parser.error('episode-log must name a new file')
     config, physical = load_configuration()
@@ -166,11 +179,20 @@ def main():
     for path in xld_dispatch_paths(args.episode_log,exp['seeds'],args.xld_diagnostics).values():
         if path.exists():
             parser.error('XLD diagnostics file already exists: '+str(path))
+    for path in trajectory_diagnostics_paths(args.episode_log,exp['seeds'],args.trajectory_diagnostics).values():
+        if path.exists():
+            parser.error('Trajectory diagnostics file already exists: '+str(path))
+    for path in checkpoint_directories(args.episode_log,exp['seeds'],args.save_checkpoints).values():
+        if path.exists():
+            parser.error('Checkpoint directory already exists: '+str(path))
     if not args.no_plot:
         for path in plot_output_paths(args.episode_log).values():
             if path.exists():
                 parser.error('Figure file already exists: '+str(path))
-    exp['diagnostics'] = args.diagnostics
+    exp['diagnostics'] = args.diagnostics or args.trajectory_diagnostics
+    exp['trajectory_diagnostics'] = args.trajectory_diagnostics
+    exp['save_checkpoints'] = args.save_checkpoints
+    exp['checkpoint_interval'] = args.checkpoint_interval
     exp['xld_diagnostics'] = args.xld_diagnostics
     data = CascadeData(args.data_dir,physical,exp)
     run_parallel_experiment(data,physical,config,args)
