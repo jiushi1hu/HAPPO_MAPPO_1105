@@ -1,0 +1,3937 @@
+{
+  "status": "complete",
+  "run_log": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615.jsonl",
+  "run_log_sha256": "3d26395da3bed7f3fe15f02f03e016ece09aabb202fc39cc8c58328cae6afcd7",
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "created_utc": "2026-11-03T09:16:37.164703+00:00",
+  "gamma": 0.99,
+  "action_bins": 100,
+  "checkpoint_policy": "final trained policies; no fitting, selection or retraining",
+  "counterfactual_scope": "same starting state, current inflows and daily limits; only the selected reservoir command changes, all other original commands held fixed",
+  "interpretation": "Same-state restrictions do not prove global physical inevitability; same-day alternatives do not prove an improvement in long-horizon return. Alternatives for different reservoirs/days are evaluated separately, not combined.",
+  "classification_definitions": {
+    "requirement_inactive": "The effective service requirement is zero.",
+    "no_violation": "The executed service meets its requirement within reward tolerance.",
+    "same_day_policy_alternative": "Another available discrete command meets this service from the same saved state; future water value is unassessed.",
+    "discrete_grid_gap": "A continuous command meets the service but no configured discrete command does.",
+    "same_state_capacity_limit": "The service exceeds its optimistic outlet or turbine/installed capacity bound.",
+    "same_state_water_limit": "Releasable water above the current next-state storage floor cannot meet the service even at optimistic maximum head for power.",
+    "same_state_dispatch_limit": "The current feasible release ceiling cannot meet the service even at optimistic maximum head for power.",
+    "same_state_head_limit": "All continuous current-state power choices fail despite optimistic water, dispatch and hardware bounds."
+  },
+  "analysis_source_hashes": {
+    "analysis/dispatch_diagnostics/analyze_run.py": "5503f1327988b8707691acbaf95a52af79f9dda158ff3e65205b9e94fb97726b",
+    "analysis/dispatch_diagnostics/feasibility.py": "4ed6de15ec95c639d15092446b2d26609435cdef81545a568159106d711b3f46",
+    "analysis/dispatch_diagnostics/report.py": "121759ae6828aad19ec3ef82eb05ed6f6f156d781d9bc305204b14a0cdd27d06"
+  },
+  "scenarios": [
+    {
+      "seed": 1,
+      "window_id": "dry_2007",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed1_dry_2007_dispatch.csv",
+      "sha256": "22abf2445bde0886a653bdb50b7c76da4dce2f1598bee33116b24c9c67ae1201",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 1,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          2007,
+          2008,
+          2009,
+          2010,
+          2011
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "2007-01-01",
+        "end_date": "2011-12-30",
+        "energy_MWh": 1184343761.366126,
+        "energy_TWh": 1184.343761366126,
+        "spill_volume_m3": 322013192781.1517,
+        "energy_by_reservoir_TWh": [
+          189.06442266493022,
+          270.9708939209064,
+          251.1390237305529,
+          146.75649042995795,
+          326.4129306197741
+        ],
+        "spill_by_reservoir_billion_m3": [
+          40.14877031165151,
+          46.95307899614958,
+          98.5341897899899,
+          118.85703823043855,
+          17.520115452921775
+        ],
+        "initial_storage_m3": [
+          5269237288.0,
+          16918800000.0,
+          10299898305.0,
+          4799461017.0,
+          34119152542.0
+        ],
+        "final_storage_m3": [
+          3148830581.6946173,
+          8781680202.957972,
+          5368115236.565883,
+          4328463195.755966,
+          18750745847.03398
+        ],
+        "total_storage_depletion_billion_m3": 31.02871408799158,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 4.987124207810993,
+        "episode_generation_reward": 33.52643475577854,
+        "episode_penalty": 28.539310547967375,
+        "episode_global_reward": 33.526434755778546,
+        "episode_system_reward": 31.6714153419708,
+        "episode_penalty_guaranteed_output": 27.30459507940126,
+        "episode_penalty_ecological_flow": 1.2347154685661286,
+        "penalty_by_reservoir": [
+          3.7748548027100326,
+          6.434068121039523,
+          7.429612431081069,
+          5.654153421509909,
+          5.2466217716269385
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4474,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.4903013698630137,
+            "compliance_rate": 0.5096986301369864,
+            "days_any_reservoir": 1037,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4272.149482373803,
+            "mean_relative_shortfall": 0.20359642593530963,
+            "max_relative_shortfall": 0.7991749410505272,
+            "by_reservoir_days": [
+              751,
+              947,
+              1003,
+              920,
+              853
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5884931506849316,
+              0.4810958904109589,
+              0.45041095890410954,
+              0.49589041095890407,
+              0.5326027397260273
+            ],
+            "by_reservoir_max_shortfall": [
+              1655.5114707650173,
+              3541.1365370052226,
+              4272.149482373803,
+              2041.349024764727,
+              3253.844072498837
+            ],
+            "shortfall_energy_MWh": 184559859.58235234,
+            "by_reservoir_shortfall_energy_MWh": [
+              13899968.818693632,
+              46577938.714532174,
+              66037321.20473896,
+              26553835.310797855,
+              31490795.533589724
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 952,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.10432876712328767,
+            "compliance_rate": 0.8956712328767124,
+            "days_any_reservoir": 503,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 3022.095251919443,
+            "mean_relative_shortfall": 0.015556191574200526,
+            "max_relative_shortfall": 0.5036825419865738,
+            "by_reservoir_days": [
+              67,
+              211,
+              115,
+              104,
+              455
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9632876712328767,
+              0.8843835616438356,
+              0.936986301369863,
+              0.943013698630137,
+              0.7506849315068493
+            ],
+            "by_reservoir_max_shortfall": [
+              344.764642350534,
+              486.5206444998753,
+              381.87980208700856,
+              365.4368615156628,
+              3022.095251919443
+            ],
+            "deficit_volume_m3": 49674282018.46148,
+            "by_reservoir_deficit_volume_m3": [
+              547647335.1587927,
+              2526438215.783898,
+              1249045236.411633,
+              1264128118.332265,
+              44087023112.77489
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          28.439898917859896,
+          29.937705307604162,
+          37.27950093417325,
+          43.374460349465195,
+          33.481383158898076
+        ],
+        "episode_local_reward_penalties": [
+          18.87427401355016,
+          32.170340605197666,
+          37.148062155405405,
+          28.270767107549478,
+          26.233108858134667
+        ],
+        "episode_local_rewards": [
+          9.565624904309745,
+          -2.2326352975935264,
+          0.13143877876791032,
+          15.103693241915686,
+          7.248274300763318
+        ],
+        "episode_mixed_rewards": [
+          21.546029830044116,
+          15.646899729092459,
+          16.828936767273216,
+          24.315063998847048,
+          20.387354528270745
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            18.8696176355232,
+            32.1157023324025,
+            37.1392986084133,
+            28.264590496018872,
+            20.13376632464881
+          ],
+          "ecological_flow": [
+            0.004656378026947915,
+            0.05463827279512381,
+            0.00876354699209726,
+            0.006176611530626872,
+            6.099342533485857
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 1,
+      "window_id": "median_1991",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed1_median_1991_dispatch.csv",
+      "sha256": "33136f878a66c053971e21b9f1427c0186d7046eb3295faab1b8362ae7286824",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 1,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1991,
+          1992,
+          1993,
+          1994,
+          1995
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1991-01-01",
+        "end_date": "1995-12-30",
+        "energy_MWh": 1210064386.8306143,
+        "energy_TWh": 1210.0643868306142,
+        "spill_volume_m3": 385381180462.13586,
+        "energy_by_reservoir_TWh": [
+          187.01414968859703,
+          269.19336630946265,
+          247.5571769070144,
+          143.85492518642795,
+          362.44476873911015
+        ],
+        "spill_by_reservoir_billion_m3": [
+          41.55721352421829,
+          47.75459916749319,
+          107.35960083148066,
+          129.5952873011283,
+          59.11447963781511
+        ],
+        "initial_storage_m3": [
+          4982593220.0,
+          15928264407.0,
+          9664847458.0,
+          4710691525.0,
+          32692542373.0
+        ],
+        "final_storage_m3": [
+          3252792356.164753,
+          8838406734.124678,
+          5411922946.346771,
+          4361828726.063478,
+          18180558660.565437
+        ],
+        "total_storage_depletion_billion_m3": 27.933429559734883,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 0.4004375866454948,
+        "episode_generation_reward": 33.29892647113938,
+        "episode_penalty": 32.898488884494014,
+        "episode_global_reward": 33.29892647113939,
+        "episode_system_reward": 19.36252245022743,
+        "episode_penalty_guaranteed_output": 31.5518918223669,
+        "episode_penalty_ecological_flow": 1.3465970621269743,
+        "penalty_by_reservoir": [
+          5.353065164429882,
+          7.98059159937879,
+          8.62949111166247,
+          7.099298423378826,
+          3.836042585643917
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4706,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.5157260273972603,
+            "compliance_rate": 0.48427397260273974,
+            "days_any_reservoir": 1042,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4426.994424360548,
+            "mean_relative_shortfall": 0.23437847535874662,
+            "max_relative_shortfall": 0.8281412021551056,
+            "by_reservoir_days": [
+              837,
+              1004,
+              1035,
+              981,
+              849
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5413698630136986,
+              0.44986301369863013,
+              0.4328767123287671,
+              0.46246575342465757,
+              0.5347945205479452
+            ],
+            "by_reservoir_max_shortfall": [
+              1692.9155446493683,
+              3681.9643105714003,
+              4426.994424360548,
+              2120.59400152293,
+              3258.0534224624366
+            ],
+            "shortfall_energy_MWh": 209430935.4599172,
+            "by_reservoir_shortfall_energy_MWh": [
+              17825499.27635083,
+              54125456.16715243,
+              74527482.3323832,
+              31472254.412951272,
+              31480243.271079466
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 1456,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.15956164383561644,
+            "compliance_rate": 0.8404383561643836,
+            "days_any_reservoir": 543,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 3029.6819849245,
+            "mean_relative_shortfall": 0.027898671066003255,
+            "max_relative_shortfall": 0.5049469974874167,
+            "by_reservoir_days": [
+              175,
+              314,
+              250,
+              248,
+              469
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.904109589041096,
+              0.827945205479452,
+              0.863013698630137,
+              0.8641095890410959,
+              0.743013698630137
+            ],
+            "by_reservoir_max_shortfall": [
+              377.0449817030735,
+              578.6686941310276,
+              493.4138791486155,
+              457.63823476554455,
+              3029.6819849245
+            ],
+            "deficit_volume_m3": 61397499456.048355,
+            "by_reservoir_deficit_volume_m3": [
+              2021866838.5303285,
+              5953544995.42868,
+              4159086808.2326427,
+              4230761078.5154595,
+              45032239735.34124
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          28.51014113990243,
+          29.834713327653095,
+          36.069618524234805,
+          41.43731341792277,
+          34.0667764420718
+        ],
+        "episode_local_reward_penalties": [
+          26.76532582214939,
+          39.902957996894095,
+          43.147455558312224,
+          35.49649211689416,
+          19.180212928219568
+        ],
+        "episode_local_rewards": [
+          1.7448153177530394,
+          -10.068244669240883,
+          -7.07783703407742,
+          5.940821301028592,
+          14.886563513852334
+        ],
+        "episode_mixed_rewards": [
+          17.521870894446202,
+          11.615340900949233,
+          13.110544718530956,
+          19.619873886083997,
+          24.09274499249587
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            26.694807525215104,
+            38.40323570913778,
+            42.562386191500345,
+            34.98070968017947,
+            15.118320005801847
+          ],
+          "ecological_flow": [
+            0.07051829693428589,
+            1.49972228775629,
+            0.5850693668118471,
+            0.515782436714691,
+            4.061892922417748
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 1,
+      "window_id": "wet_1973",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed1_wet_1973_dispatch.csv",
+      "sha256": "8c9ffeb7dd6e569c8ead748825a54e349e81c70a9f5cd1117f6bf1ce77e0f0a0",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 1,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1973,
+          1974,
+          1975,
+          1976,
+          1977
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1973-01-01",
+        "end_date": "1977-12-30",
+        "energy_MWh": 1371643754.8582807,
+        "energy_TWh": 1371.6437548582808,
+        "spill_volume_m3": 843212440559.4165,
+        "energy_by_reservoir_TWh": [
+          220.0196875640559,
+          313.6726322087231,
+          279.17077739030316,
+          160.60775593392873,
+          398.1729017612642
+        ],
+        "spill_by_reservoir_billion_m3": [
+          124.33777229741155,
+          133.5744233792725,
+          216.0028384190821,
+          242.85797953305064,
+          126.43942693059975
+        ],
+        "initial_storage_m3": [
+          5289711864.0,
+          17095681356.0,
+          10365593220.0,
+          4808644068.0,
+          36446779661.0
+        ],
+        "final_storage_m3": [
+          3292780024.72431,
+          8871400891.524845,
+          5447020163.357204,
+          4388379374.704457,
+          18280706882.780422
+        ],
+        "total_storage_depletion_billion_m3": 33.72612283190876,
+        "max_balance_residual_m3": 3.5762786865234375e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 14.592429275979494,
+        "episode_generation_reward": 38.26934652836097,
+        "episode_penalty": 23.676917252381596,
+        "episode_global_reward": 38.26934652836097,
+        "episode_system_reward": 58.68407111730644,
+        "episode_penalty_guaranteed_output": 22.401535840893114,
+        "episode_penalty_ecological_flow": 1.2753814114884467,
+        "penalty_by_reservoir": [
+          2.086044779893983,
+          5.167518311917364,
+          6.48857646412187,
+          4.766658121853296,
+          5.1681195745950825
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 3949,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.43276712328767125,
+            "compliance_rate": 0.5672328767123287,
+            "days_any_reservoir": 937,
+            "shortfall_unit": "MW",
+            "max_shortfall": 3994.055219241066,
+            "mean_relative_shortfall": 0.16385379096187624,
+            "max_relative_shortfall": 0.7471528928374331,
+            "by_reservoir_days": [
+              616,
+              841,
+              925,
+              837,
+              730
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.6624657534246575,
+              0.5391780821917809,
+              0.4931506849315068,
+              0.5413698630136986,
+              0.6
+            ],
+            "by_reservoir_max_shortfall": [
+              1421.5305301655926,
+              3275.3300305366374,
+              3994.055219241066,
+              1884.1941719624597,
+              2984.3445645872134
+            ],
+            "shortfall_energy_MWh": 150359481.01046187,
+            "by_reservoir_shortfall_energy_MWh": [
+              9502228.398985522,
+              37409768.51266967,
+              55754435.913126655,
+              21788219.221300162,
+              25904828.964379888
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 578,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.06334246575342466,
+            "compliance_rate": 0.9366575342465754,
+            "days_any_reservoir": 422,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2562.830210716846,
+            "mean_relative_shortfall": 0.009564342202642956,
+            "max_relative_shortfall": 0.42713836845280767,
+            "by_reservoir_days": [
+              21,
+              97,
+              35,
+              29,
+              396
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9884931506849315,
+              0.9468493150684931,
+              0.9808219178082191,
+              0.9841095890410959,
+              0.783013698630137
+            ],
+            "by_reservoir_max_shortfall": [
+              142.79705419157335,
+              312.9214831966432,
+              182.42704241355557,
+              183.07270041713787,
+              2562.830210716846
+            ],
+            "deficit_volume_m3": 38724269691.77066,
+            "by_reservoir_deficit_volume_m3": [
+              91639997.32397375,
+              916363170.7522098,
+              260309855.58647117,
+              272508645.0935335,
+              37183448023.01447
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          35.32022444526152,
+          35.568282967564755,
+          41.997973548248375,
+          47.89619852298132,
+          36.70070248410355
+        ],
+        "episode_local_reward_penalties": [
+          10.430223899469906,
+          25.83759155958684,
+          32.44288232060924,
+          23.833290609266438,
+          25.84059787297542
+        ],
+        "episode_local_rewards": [
+          24.89000054579166,
+          9.730691407977908,
+          9.555091227639211,
+          24.062907913714778,
+          10.860104611128031
+        ],
+        "episode_mixed_rewards": [
+          31.579673537076385,
+          24.000018968169446,
+          23.912218878000107,
+          31.166127221037918,
+          24.564725569744525
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            10.414889620493554,
+            25.743110812806272,
+            32.406862089709485,
+            23.79646431616564,
+            19.64635236529066
+          ],
+          "ecological_flow": [
+            0.015334278976355104,
+            0.09448074678057695,
+            0.0360202308997662,
+            0.03682629310079074,
+            6.194245507684748
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 1,
+      "window_id": "held_out_sequence",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed1_held_out_sequence_dispatch.csv",
+      "sha256": "b29e9b2445baf8a2ea5ea8c3960d173f9eef52d42dcd4422d006fbb46445d6d0",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "evaluation",
+        "seed": 1,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1998,
+          1999,
+          1970,
+          1997,
+          2006
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1998-01-01",
+        "end_date": "2006-12-31",
+        "energy_MWh": 1180092288.5423284,
+        "energy_TWh": 1180.0922885423283,
+        "spill_volume_m3": 633129260887.1433,
+        "energy_by_reservoir_TWh": [
+          186.35471947698514,
+          266.5761215473524,
+          243.79179457318543,
+          142.88069033520827,
+          340.48896260959594
+        ],
+        "spill_by_reservoir_billion_m3": [
+          81.7403987375972,
+          92.12086638280734,
+          150.10881282886734,
+          168.11410586948728,
+          141.04507706838385
+        ],
+        "initial_storage_m3": [
+          5443271186.0,
+          17414067797.0,
+          10562677966.0,
+          4836193220.0,
+          36071355932.0
+        ],
+        "final_storage_m3": [
+          3363659501.9736304,
+          8896902975.676191,
+          5462702129.506402,
+          4399373104.30776,
+          19139804775.25699
+        ],
+        "total_storage_depletion_billion_m3": 33.06512361427903,
+        "max_balance_residual_m3": 3.0994415283203125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 4.591404744073188,
+        "episode_generation_reward": 35.18088001945744,
+        "episode_penalty": 30.58947527538418,
+        "episode_global_reward": 35.18088001945745,
+        "episode_system_reward": 31.59778363186013,
+        "episode_penalty_guaranteed_output": 29.341617548951078,
+        "episode_penalty_ecological_flow": 1.2478577264331414,
+        "penalty_by_reservoir": [
+          4.696263746530791,
+          6.908349943078759,
+          7.716016952207129,
+          6.19161012239716,
+          5.077234511170404
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4527,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.49610958904109587,
+            "compliance_rate": 0.5038904109589042,
+            "days_any_reservoir": 1047,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4130.807815918318,
+            "mean_relative_shortfall": 0.21017253342155628,
+            "max_relative_shortfall": 0.7727346869293672,
+            "by_reservoir_days": [
+              793,
+              944,
+              985,
+              920,
+              885
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5654794520547946,
+              0.48273972602739723,
+              0.4602739726027397,
+              0.49589041095890407,
+              0.5150684931506849
+            ],
+            "by_reservoir_max_shortfall": [
+              1443.8169519215248,
+              3358.954116284861,
+              4130.807815918318,
+              1987.869409327307,
+              3023.099544528379
+            ],
+            "shortfall_energy_MWh": 189080210.34031737,
+            "by_reservoir_shortfall_energy_MWh": [
+              14740754.393156039,
+              48911379.729470834,
+              68381644.16167845,
+              28536425.133565597,
+              28510006.922446456
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 830,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.09095890410958904,
+            "compliance_rate": 0.9090410958904109,
+            "days_any_reservoir": 442,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2628.6832829517534,
+            "mean_relative_shortfall": 0.013048722631023123,
+            "max_relative_shortfall": 0.43811388049195893,
+            "by_reservoir_days": [
+              59,
+              175,
+              100,
+              106,
+              390
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9676712328767123,
+              0.904109589041096,
+              0.9452054794520548,
+              0.941917808219178,
+              0.7863013698630137
+            ],
+            "by_reservoir_max_shortfall": [
+              161.92866368773366,
+              367.48355222693635,
+              280.4135107260863,
+              303.27475182587864,
+              2628.6832829517534
+            ],
+            "deficit_volume_m3": 40610126950.876144,
+            "by_reservoir_deficit_volume_m3": [
+              380242780.32564414,
+              2169449019.40421,
+              1196724911.0090818,
+              1228942739.2904909,
+              35634767500.84672
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          30.770768611257832,
+          32.67603121215144,
+          38.82797731014368,
+          44.38690819822947,
+          34.300378289401706
+        ],
+        "episode_local_reward_penalties": [
+          23.481318732653964,
+          34.54174971539368,
+          38.580084761035664,
+          30.95805061198581,
+          25.386172555851985
+        ],
+        "episode_local_rewards": [
+          7.289449878603881,
+          -1.865718503242441,
+          0.2478925491081023,
+          13.428857586243685,
+          8.914205733549629
+        ],
+        "episode_mixed_rewards": [
+          21.23516494903065,
+          16.657580758107468,
+          17.71438628428276,
+          24.30486880285056,
+          22.047542876503506
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            23.402346291912483,
+            34.129361603303366,
+            38.53887228055219,
+            30.951912320678005,
+            19.685595248309415
+          ],
+          "ecological_flow": [
+            0.07897244074147328,
+            0.4123881120903647,
+            0.04121248048348396,
+            0.006138291307818631,
+            5.700577307542563
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 2,
+      "window_id": "dry_2007",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed2_dry_2007_dispatch.csv",
+      "sha256": "ea370484c12c28da10b7102f18d1343494cfbc9f9ea68695bcfecf390b6e979f",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 2,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          2007,
+          2008,
+          2009,
+          2010,
+          2011
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "2007-01-01",
+        "end_date": "2011-12-30",
+        "energy_MWh": 1190610563.9148157,
+        "energy_TWh": 1190.6105639148157,
+        "spill_volume_m3": 320211058769.0112,
+        "energy_by_reservoir_TWh": [
+          181.98392779271558,
+          273.18283552962,
+          259.1404514363242,
+          146.68325145575378,
+          329.6200977004037
+        ],
+        "spill_by_reservoir_billion_m3": [
+          41.970288649328324,
+          46.05864709522378,
+          96.1832049435765,
+          118.05386670378634,
+          17.945051377096487
+        ],
+        "initial_storage_m3": [
+          5269237288.0,
+          16918800000.0,
+          10299898305.0,
+          4799461017.0,
+          34119152542.0
+        ],
+        "final_storage_m3": [
+          2925078359.0439196,
+          8808865695.01933,
+          5593104403.89864,
+          4288555933.4240217,
+          18238056526.70631
+        ],
+        "total_storage_depletion_billion_m3": 31.55288823390778,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 8.750468126846908,
+        "episode_generation_reward": 35.22619021753475,
+        "episode_penalty": 26.475722090687952,
+        "episode_global_reward": 35.22619021753475,
+        "episode_system_reward": 42.7313035071927,
+        "episode_penalty_guaranteed_output": 25.27480966767177,
+        "episode_penalty_ecological_flow": 1.2009124230161627,
+        "penalty_by_reservoir": [
+          4.244821935502014,
+          5.845584301787199,
+          6.525467920369066,
+          4.977830130381113,
+          4.882017802648588
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4493,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.4923835616438356,
+            "compliance_rate": 0.5076164383561643,
+            "days_any_reservoir": 1053,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4306.651796995686,
+            "mean_relative_shortfall": 0.20307462110190308,
+            "max_relative_shortfall": 0.8056291593235098,
+            "by_reservoir_days": [
+              773,
+              949,
+              1004,
+              922,
+              845
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5764383561643835,
+              0.48,
+              0.44986301369863013,
+              0.49479452054794526,
+              0.536986301369863
+            ],
+            "by_reservoir_max_shortfall": [
+              1741.965095353551,
+              3611.005581932828,
+              4306.651796995686,
+              2067.421027448134,
+              3198.3538991348523
+            ],
+            "shortfall_energy_MWh": 182855439.5936433,
+            "by_reservoir_shortfall_energy_MWh": [
+              14993973.253840279,
+              46514309.576174326,
+              64333514.410423435,
+              26230744.21858124,
+              30782898.134624023
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 985,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.10794520547945205,
+            "compliance_rate": 0.8920547945205479,
+            "days_any_reservoir": 497,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2943.8971437102723,
+            "mean_relative_shortfall": 0.016514605640835688,
+            "max_relative_shortfall": 0.4906495239517121,
+            "by_reservoir_days": [
+              98,
+              215,
+              114,
+              113,
+              445
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9463013698630137,
+              0.8821917808219178,
+              0.9375342465753425,
+              0.938082191780822,
+              0.7561643835616438
+            ],
+            "by_reservoir_max_shortfall": [
+              416.35953419198324,
+              532.6487557844575,
+              408.5022090190696,
+              394.4211756231314,
+              2943.8971437102723
+            ],
+            "deficit_volume_m3": 50745982203.02875,
+            "by_reservoir_deficit_volume_m3": [
+              856465891.0945888,
+              2825689127.3556166,
+              1303401699.6537087,
+              1323281521.1467645,
+              44437143963.77807
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          26.949765299772917,
+          33.45886059680367,
+          42.012296789345605,
+          47.15146522506028,
+          33.04263933930798
+        ],
+        "episode_local_reward_penalties": [
+          21.224109677510096,
+          29.22792150893594,
+          32.62733960184533,
+          24.88915065190554,
+          24.410089013242995
+        ],
+        "episode_local_rewards": [
+          5.725655622262838,
+          4.230939087867658,
+          9.384957187500186,
+          22.26231457315459,
+          8.632550326065077
+        ],
+        "episode_mixed_rewards": [
+          20.47592291989889,
+          19.72856465270131,
+          22.305573702517624,
+          28.744252395344777,
+          21.929370271800043
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            21.20907007339101,
+            29.143410453035607,
+            32.6155021761979,
+            24.879490397730546,
+            18.526575238004007
+          ],
+          "ecological_flow": [
+            0.015039604119095065,
+            0.0845110559003881,
+            0.011837425647402058,
+            0.009660254174974932,
+            5.88351377523896
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 2,
+      "window_id": "median_1991",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed2_median_1991_dispatch.csv",
+      "sha256": "e476eeba98cd203a66327f0385be1d13412666060da76282ea87e1d9ec78a396",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 2,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1991,
+          1992,
+          1993,
+          1994,
+          1995
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1991-01-01",
+        "end_date": "1995-12-30",
+        "energy_MWh": 1217599007.6719007,
+        "energy_TWh": 1217.5990076719008,
+        "spill_volume_m3": 385885425217.4092,
+        "energy_by_reservoir_TWh": [
+          180.01640032287662,
+          271.235701771918,
+          255.1043222149943,
+          143.4444464048752,
+          367.7981369572392
+        ],
+        "spill_by_reservoir_billion_m3": [
+          43.33245823364295,
+          47.14029203276041,
+          105.92863026373857,
+          130.46969493704563,
+          59.01434975022174
+        ],
+        "initial_storage_m3": [
+          4982593220.0,
+          15928264407.0,
+          9664847458.0,
+          4710691525.0,
+          32692542373.0
+        ],
+        "final_storage_m3": [
+          2961479622.0637217,
+          8896790697.825102,
+          5683987221.220374,
+          4320818815.793329,
+          18292414486.413887
+        ],
+        "total_storage_depletion_billion_m3": 27.823448139683585,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 3.554783920085657,
+        "episode_generation_reward": 34.718216301662004,
+        "episode_penalty": 31.163432381576392,
+        "episode_global_reward": 34.718216301662004,
+        "episode_system_reward": 28.744050630099647,
+        "episode_penalty_guaranteed_output": 29.860690592814322,
+        "episode_penalty_ecological_flow": 1.3027417887620605,
+        "penalty_by_reservoir": [
+          5.917987046974853,
+          7.544336119310663,
+          7.824785977381485,
+          6.461546289401326,
+          3.414776948508065
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4704,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.5155068493150685,
+            "compliance_rate": 0.4844931506849315,
+            "days_any_reservoir": 1054,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4444.757637464464,
+            "mean_relative_shortfall": 0.23393755349861725,
+            "max_relative_shortfall": 0.8314640996435386,
+            "by_reservoir_days": [
+              861,
+              1000,
+              1029,
+              979,
+              835
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5282191780821918,
+              0.452054794520548,
+              0.4361643835616439,
+              0.4635616438356165,
+              0.5424657534246575
+            ],
+            "by_reservoir_max_shortfall": [
+              1732.0041434458074,
+              3717.1148154136436,
+              4444.757637464464,
+              2167.758562538642,
+              3183.1780337320297
+            ],
+            "shortfall_energy_MWh": 207964439.19464275,
+            "by_reservoir_shortfall_energy_MWh": [
+              18778588.50933409,
+              54064548.66971192,
+              72966616.10535698,
+              31180923.356756438,
+              30973762.553483326
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 1456,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.15956164383561644,
+            "compliance_rate": 0.8404383561643836,
+            "days_any_reservoir": 532,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2918.1203973970582,
+            "mean_relative_shortfall": 0.028461197975047575,
+            "max_relative_shortfall": 0.5189348418329465,
+            "by_reservoir_days": [
+              190,
+              330,
+              236,
+              237,
+              463
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.8958904109589041,
+              0.8191780821917808,
+              0.8706849315068493,
+              0.8701369863013699,
+              0.7463013698630137
+            ],
+            "by_reservoir_max_shortfall": [
+              407.55395979289403,
+              601.9644165262179,
+              507.5547664173158,
+              509.8816656953743,
+              2918.1203973970582
+            ],
+            "deficit_volume_m3": 60969379869.69075,
+            "by_reservoir_deficit_volume_m3": [
+              2414124409.493163,
+              6232410929.780848,
+              4114306608.6493416,
+              4203161435.0804143,
+              44005376486.68699
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          27.165283275266347,
+          32.78924242138562,
+          40.281764200784956,
+          44.828123308034556,
+          33.52263366094754
+        ],
+        "episode_local_reward_penalties": [
+          29.589935234874172,
+          37.721680596553234,
+          39.12392988690739,
+          32.30773144700658,
+          17.073884742540322
+        ],
+        "episode_local_rewards": [
+          -2.424651959607847,
+          -4.932438175167614,
+          1.1578343138774543,
+          12.520391861027907,
+          16.44874891840733
+        ],
+        "episode_mixed_rewards": [
+          16.146782171027123,
+          14.892889063247203,
+          17.938025307769777,
+          23.619304081344936,
+          25.58348261003456
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            29.291125775403298,
+            35.837637449884895,
+            38.52474612554342,
+            31.77529194736046,
+            13.874651665879501
+          ],
+          "ecological_flow": [
+            0.298809459470894,
+            1.8840431466684262,
+            0.599183761364007,
+            0.5324394996461086,
+            3.1992330766608643
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 2,
+      "window_id": "wet_1973",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed2_wet_1973_dispatch.csv",
+      "sha256": "9ca5b29129660e4dbe07bc6539d4e5a71b45dbaf246b74b7b26709041c395783",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 2,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1973,
+          1974,
+          1975,
+          1976,
+          1977
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1973-01-01",
+        "end_date": "1977-12-30",
+        "energy_MWh": 1380972199.3932514,
+        "energy_TWh": 1380.9721993932515,
+        "spill_volume_m3": 838129135199.2178,
+        "energy_by_reservoir_TWh": [
+          211.47168901641325,
+          316.11384919278004,
+          288.1760318557003,
+          160.55960951885805,
+          404.6510198095021
+        ],
+        "spill_by_reservoir_billion_m3": [
+          127.69425262207218,
+          134.10233482172157,
+          215.53976066074492,
+          241.94759706035344,
+          118.84519003432628
+        ],
+        "initial_storage_m3": [
+          5289711864.0,
+          17095681356.0,
+          10365593220.0,
+          4808644068.0,
+          36446779661.0
+        ],
+        "final_storage_m3": [
+          2961308766.5510864,
+          8925606438.562943,
+          5744308878.283606,
+          4342964232.454328,
+          17935494752.497826
+        ],
+        "total_storage_depletion_billion_m3": 34.09672710065021,
+        "max_balance_residual_m3": 2.384185791015625e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 17.831765570988427,
+        "episode_generation_reward": 40.00477447635815,
+        "episode_penalty": 22.173008905369585,
+        "episode_global_reward": 40.00477447635815,
+        "episode_system_reward": 68.35466127043419,
+        "episode_penalty_guaranteed_output": 20.873060776028044,
+        "episode_penalty_ecological_flow": 1.299948129341531,
+        "penalty_by_reservoir": [
+          2.4450796751668182,
+          4.801920408495802,
+          5.714789109668545,
+          4.262716636132011,
+          4.948503075906409
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 3951,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.432986301369863,
+            "compliance_rate": 0.5670136986301371,
+            "days_any_reservoir": 941,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4015.6647475063683,
+            "mean_relative_shortfall": 0.1635934891636043,
+            "max_relative_shortfall": 0.7511953060415602,
+            "by_reservoir_days": [
+              644,
+              844,
+              908,
+              834,
+              721
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.647123287671233,
+              0.5375342465753425,
+              0.5024657534246575,
+              0.543013698630137,
+              0.6049315068493151
+            ],
+            "by_reservoir_max_shortfall": [
+              1482.8778620851426,
+              3332.795993306121,
+              4015.6647475063683,
+              1894.2433602034753,
+              2986.8526359576217
+            ],
+            "shortfall_energy_MWh": 149108682.53601742,
+            "by_reservoir_shortfall_energy_MWh": [
+              10407162.638148958,
+              37390559.11608358,
+              54087609.90526963,
+              21530716.37067071,
+              25692634.50584456
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 605,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.0663013698630137,
+            "compliance_rate": 0.9336986301369863,
+            "days_any_reservoir": 415,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2587.672179978302,
+            "mean_relative_shortfall": 0.010294379139390512,
+            "max_relative_shortfall": 0.43127869666305035,
+            "by_reservoir_days": [
+              36,
+              95,
+              40,
+              42,
+              392
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9802739726027397,
+              0.947945205479452,
+              0.9780821917808219,
+              0.976986301369863,
+              0.7852054794520548
+            ],
+            "by_reservoir_max_shortfall": [
+              188.55609590538995,
+              351.03303059389975,
+              200.72313334499302,
+              192.5494409940012,
+              2587.672179978302
+            ],
+            "deficit_volume_m3": 40319707277.79726,
+            "by_reservoir_deficit_volume_m3": [
+              269224238.93134135,
+              1066534718.1938552,
+              286623273.49198794,
+              301321178.45164305,
+              38396003868.72843
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          33.42827675149901,
+          39.26292996273371,
+          46.90786316386055,
+          51.629062554825474,
+          36.341460158439496
+        ],
+        "episode_local_reward_penalties": [
+          12.225398375834125,
+          24.00960204247902,
+          28.57394554834275,
+          21.313583180660004,
+          24.74251537953209
+        ],
+        "episode_local_rewards": [
+          21.202878375664927,
+          15.2533279202547,
+          18.333917615517677,
+          30.315479374165413,
+          11.598944778907297
+        ],
+        "episode_mixed_rewards": [
+          30.60382642601155,
+          27.629051198306453,
+          29.169346045937917,
+          35.1601269252617,
+          25.801859627632677
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            12.18562194131786,
+            23.902719670539952,
+            28.535470304871215,
+            21.273878284678744,
+            18.467613678732583
+          ],
+          "ecological_flow": [
+            0.03977643451626407,
+            0.10688237193907067,
+            0.038475243471542395,
+            0.03970489598127093,
+            6.274901700799496
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 2,
+      "window_id": "held_out_sequence",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed2_held_out_sequence_dispatch.csv",
+      "sha256": "67919b4e3a8bc226a19584a2a80aa72d497226237cc2424b1bc3713b5940cc1a",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "evaluation",
+        "seed": 2,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1998,
+          1999,
+          1970,
+          1997,
+          2006
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1998-01-01",
+        "end_date": "2006-12-31",
+        "energy_MWh": 1187928597.6635237,
+        "energy_TWh": 1187.9285976635238,
+        "spill_volume_m3": 624937758817.8705,
+        "energy_by_reservoir_TWh": [
+          179.09581777362806,
+          269.26304986738234,
+          252.23322172708745,
+          143.13081073320333,
+          344.2056975622251
+        ],
+        "spill_by_reservoir_billion_m3": [
+          84.73269924691202,
+          92.08064083854785,
+          146.9324621016944,
+          165.7443392304611,
+          135.4476174002549
+        ],
+        "initial_storage_m3": [
+          5443271186.0,
+          17414067797.0,
+          10562677966.0,
+          4836193220.0,
+          36071355932.0
+        ],
+        "final_storage_m3": [
+          2999633562.71502,
+          9054436663.92786,
+          5722468936.118466,
+          4343339157.517024,
+          19037148225.158142
+        ],
+        "total_storage_depletion_billion_m3": 33.17053955556349,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 7.421571467260389,
+        "episode_generation_reward": 36.9669180075853,
+        "episode_penalty": 29.545346540324978,
+        "episode_global_reward": 36.9669180075853,
+        "episode_system_reward": 40.27805053868586,
+        "episode_penalty_guaranteed_output": 28.23693691184962,
+        "episode_penalty_ecological_flow": 1.3084096284753841,
+        "penalty_by_reservoir": [
+          5.047970928830117,
+          6.819346604183221,
+          7.140972295917895,
+          5.895047730627245,
+          4.642008980766508
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4506,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.4938082191780822,
+            "compliance_rate": 0.5061917808219178,
+            "days_any_reservoir": 1035,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4138.155848401764,
+            "mean_relative_shortfall": 0.21036628743002134,
+            "max_relative_shortfall": 0.7741092557385869,
+            "by_reservoir_days": [
+              820,
+              939,
+              972,
+              916,
+              859
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5506849315068494,
+              0.4854794520547945,
+              0.46739726027397255,
+              0.4980821917808219,
+              0.5293150684931507
+            ],
+            "by_reservoir_max_shortfall": [
+              1540.9791748553334,
+              3386.686613713063,
+              4138.155848401764,
+              2077.8899315467215,
+              3061.321362260809
+            ],
+            "shortfall_energy_MWh": 188176814.4954398,
+            "by_reservoir_shortfall_energy_MWh": [
+              15695566.78873393,
+              49102140.17428544,
+              67054433.61577861,
+              28393294.19642085,
+              27931379.720220964
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 861,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.09435616438356165,
+            "compliance_rate": 0.9056438356164384,
+            "days_any_reservoir": 451,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2724.597692535075,
+            "mean_relative_shortfall": 0.013871013352576393,
+            "max_relative_shortfall": 0.45409961542251254,
+            "by_reservoir_days": [
+              81,
+              184,
+              101,
+              101,
+              394
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9556164383561644,
+              0.8991780821917809,
+              0.9446575342465754,
+              0.9446575342465754,
+              0.7841095890410958
+            ],
+            "by_reservoir_max_shortfall": [
+              239.64680258551266,
+              386.1036006159686,
+              288.03095831888504,
+              401.85645909997174,
+              2724.597692535075
+            ],
+            "deficit_volume_m3": 41545348148.808685,
+            "by_reservoir_deficit_volume_m3": [
+              640327768.1692377,
+              2385093732.7799597,
+              1235939526.1771104,
+              1333280069.9085512,
+              35950707051.77383
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          28.936647742342732,
+          36.50755268554252,
+          43.80410152165299,
+          48.140825527454645,
+          33.92678829441852
+        ],
+        "episode_local_reward_penalties": [
+          25.239854644150626,
+          34.096733020916176,
+          35.70486147958947,
+          29.47523865313613,
+          23.21004490383252
+        ],
+        "episode_local_rewards": [
+          3.6967930981921215,
+          2.41081966462645,
+          8.099240042063473,
+          18.66558687431842,
+          10.716743390585888
+        ],
+        "episode_mixed_rewards": [
+          20.33185555288874,
+          19.68886883610592,
+          22.53307902482442,
+          27.816252440952038,
+          23.841830699085655
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            24.744524048967556,
+            33.386127554495935,
+            35.62746883731502,
+            29.257315269966085,
+            18.169248848503393
+          ],
+          "ecological_flow": [
+            0.49533059518308453,
+            0.7106054664202104,
+            0.07739264227443984,
+            0.21792338317002688,
+            5.04079605532916
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 3,
+      "window_id": "dry_2007",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed3_dry_2007_dispatch.csv",
+      "sha256": "fc2d6c5724ab116cb1a5cd542aea439631e9500350c59831e19abd7a75e976af",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 3,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          2007,
+          2008,
+          2009,
+          2010,
+          2011
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "2007-01-01",
+        "end_date": "2011-12-30",
+        "energy_MWh": 1180689699.6266108,
+        "energy_TWh": 1180.6896996266107,
+        "spill_volume_m3": 333719702287.30786,
+        "energy_by_reservoir_TWh": [
+          185.69926641898837,
+          264.9646899022788,
+          258.77939345203794,
+          146.7341337123137,
+          324.51221614099126
+        ],
+        "spill_by_reservoir_billion_m3": [
+          40.762137031305144,
+          51.73356271973455,
+          98.1365941332574,
+          118.07220487726877,
+          25.015203525741626
+        ],
+        "initial_storage_m3": [
+          5269237288.0,
+          16918800000.0,
+          10299898305.0,
+          4799461017.0,
+          34119152542.0
+        ],
+        "final_storage_m3": [
+          3010170350.532364,
+          8677310138.052177,
+          5267512602.690565,
+          4311337926.943936,
+          18133413747.380848
+        ],
+        "total_storage_depletion_billion_m3": 32.006804386400105,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 2.7463685581301136,
+        "episode_generation_reward": 32.244147554927416,
+        "episode_penalty": 29.4977789967973,
+        "episode_global_reward": 32.244147554927416,
+        "episode_system_reward": 26.503176167078134,
+        "episode_penalty_guaranteed_output": 28.18326936555563,
+        "episode_penalty_ecological_flow": 1.3145096312416693,
+        "penalty_by_reservoir": [
+          4.028594895089326,
+          6.879442296821955,
+          7.450503589341371,
+          5.656316199943507,
+          5.482922015601183
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4510,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.49424657534246574,
+            "compliance_rate": 0.5057534246575343,
+            "days_any_reservoir": 1063,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4356.782903979429,
+            "mean_relative_shortfall": 0.20443279343735135,
+            "max_relative_shortfall": 0.8150069970217986,
+            "by_reservoir_days": [
+              760,
+              961,
+              1015,
+              917,
+              857
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5835616438356164,
+              0.47342465753424656,
+              0.4438356164383561,
+              0.4975342465753425,
+              0.5304109589041096
+            ],
+            "by_reservoir_max_shortfall": [
+              1705.5514343942532,
+              3629.1894939360836,
+              4356.782903979429,
+              2087.5483239154464,
+              3211.74266813843
+            ],
+            "shortfall_energy_MWh": 184980420.11987323,
+            "by_reservoir_shortfall_energy_MWh": [
+              14524039.820608795,
+              47651991.701288655,
+              65176216.5290009,
+              26063963.547413092,
+              31564208.521561798
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 1026,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.11243835616438357,
+            "compliance_rate": 0.8875616438356164,
+            "days_any_reservoir": 508,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2962.8616932042323,
+            "mean_relative_shortfall": 0.01708185765725097,
+            "max_relative_shortfall": 0.4938102822007054,
+            "by_reservoir_days": [
+              87,
+              221,
+              135,
+              122,
+              461
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9523287671232876,
+              0.8789041095890411,
+              0.9260273972602739,
+              0.9331506849315069,
+              0.7473972602739727
+            ],
+            "by_reservoir_max_shortfall": [
+              385.83468824035094,
+              543.2199021044219,
+              440.87773069021364,
+              418.7649662664288,
+              2962.8616932042323
+            ],
+            "deficit_volume_m3": 52139024558.69936,
+            "by_reservoir_deficit_volume_m3": [
+              709551030.2534412,
+              2923359271.521631,
+              1559540346.6594043,
+              1484923382.9319298,
+              45461650527.332954
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          27.784167174618908,
+          27.30131857138401,
+          38.2625664665841,
+          43.77128697035838,
+          31.131760580270175
+        ],
+        "episode_local_reward_penalties": [
+          20.14297447544666,
+          34.39721148410964,
+          37.252517946706725,
+          28.281580999717498,
+          27.414610078005907
+        ],
+        "episode_local_rewards": [
+          7.6411926991722225,
+          -7.095892912725696,
+          1.0100485198771443,
+          15.489705970640848,
+          3.7171505022643054
+        ],
+        "episode_mixed_rewards": [
+          19.942670127049823,
+          12.574127321100903,
+          16.627098037402213,
+          23.866926762784196,
+          17.980649028595863
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            20.132841074119426,
+            34.29551196757262,
+            37.233295342031774,
+            28.26782209657,
+            20.98687634748425
+          ],
+          "ecological_flow": [
+            0.010133401327247472,
+            0.1016995165369652,
+            0.01922260467495825,
+            0.013758903147500579,
+            6.42773373052165
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 3,
+      "window_id": "median_1991",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed3_median_1991_dispatch.csv",
+      "sha256": "dc8750d8b38cc2f0cff3c810a8d9dc2b922a8e7460b8b739e1fccd066416722e",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 3,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1991,
+          1992,
+          1993,
+          1994,
+          1995
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1991-01-01",
+        "end_date": "1995-12-30",
+        "energy_MWh": 1205960426.9640353,
+        "energy_TWh": 1205.9604269640354,
+        "spill_volume_m3": 397637604254.0177,
+        "energy_by_reservoir_TWh": [
+          183.81226068110124,
+          263.2054034230873,
+          255.18522694689085,
+          143.8110411347921,
+          359.94649477816574
+        ],
+        "spill_by_reservoir_billion_m3": [
+          41.773754851105664,
+          52.367867465040106,
+          107.3580689677326,
+          129.06098023328505,
+          67.07693273685432
+        ],
+        "initial_storage_m3": [
+          4982593220.0,
+          15928264407.0,
+          9664847458.0,
+          4710691525.0,
+          32692542373.0
+        ],
+        "final_storage_m3": [
+          3079186652.498907,
+          8719286978.098604,
+          5314534164.0626955,
+          4360773779.814218,
+          17905499577.123196
+        ],
+        "total_storage_depletion_billion_m3": 28.599657831402382,
+        "max_balance_residual_m3": 1.9073486328125e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": -1.3838750088771525,
+        "episode_generation_reward": 32.458666710782644,
+        "episode_penalty": 33.842541719659536,
+        "episode_global_reward": 32.458666710782644,
+        "episode_system_reward": 15.537021801568995,
+        "episode_penalty_guaranteed_output": 32.284504655305966,
+        "episode_penalty_ecological_flow": 1.55803706435363,
+        "penalty_by_reservoir": [
+          5.638430652348371,
+          8.544269605349259,
+          8.604674270138581,
+          7.077062789561309,
+          3.9781044022620713
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4718,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.5170410958904109,
+            "compliance_rate": 0.4829589041095891,
+            "days_any_reservoir": 1055,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4480.134184831723,
+            "mean_relative_shortfall": 0.23480005255523698,
+            "max_relative_shortfall": 0.8380818573492197,
+            "by_reservoir_days": [
+              849,
+              1014,
+              1028,
+              973,
+              854
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5347945205479452,
+              0.44438356164383563,
+              0.4367123287671233,
+              0.46684931506849314,
+              0.5320547945205479
+            ],
+            "by_reservoir_max_shortfall": [
+              1715.7979744016593,
+              3726.162292951155,
+              4480.134184831723,
+              2180.5621574437882,
+              3202.8067957674502
+            ],
+            "shortfall_energy_MWh": 209536753.00469333,
+            "by_reservoir_shortfall_energy_MWh": [
+              18376037.035413496,
+              55078606.232226826,
+              73484859.63583797,
+              30917635.073873345,
+              31679615.027341697
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 1489,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.16317808219178082,
+            "compliance_rate": 0.8368219178082192,
+            "days_any_reservoir": 543,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2947.9702978152186,
+            "mean_relative_shortfall": 0.029210685056764205,
+            "max_relative_shortfall": 0.5231424616719296,
+            "by_reservoir_days": [
+              172,
+              332,
+              262,
+              252,
+              471
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9057534246575343,
+              0.8180821917808219,
+              0.8564383561643836,
+              0.8619178082191781,
+              0.7419178082191781
+            ],
+            "by_reservoir_max_shortfall": [
+              394.72372287835606,
+              606.8452555394383,
+              530.2503054994706,
+              527.5287472737057,
+              2947.9702978152186
+            ],
+            "deficit_volume_m3": 62500115215.98781,
+            "by_reservoir_deficit_volume_m3": [
+              2218965277.1485786,
+              6335836146.667078,
+              4469002771.397589,
+              4505428468.006776,
+              44970882552.767784
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          27.934665045802877,
+          27.61337720714189,
+          37.61984277375345,
+          42.43232371737727,
+          32.22787674657778
+        ],
+        "episode_local_reward_penalties": [
+          28.192153261741883,
+          42.721348026746256,
+          43.02337135069297,
+          35.385313947806566,
+          19.890522011310367
+        ],
+        "episode_local_rewards": [
+          -0.2574882159389218,
+          -15.107970819604292,
+          -5.403528576939554,
+          7.047009769570818,
+          12.33735473526743
+        ],
+        "episode_mixed_rewards": [
+          16.100589247421674,
+          8.675347945589053,
+          13.527569066921455,
+          19.752838240176608,
+          22.398010723024942
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            28.07606509309193,
+            40.64172585099229,
+            42.28377986603565,
+            34.741180342338374,
+            15.679772124071729
+          ],
+          "ecological_flow": [
+            0.11608816864997444,
+            2.079622175753982,
+            0.7395914846573078,
+            0.6441336054682893,
+            4.210749887238611
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 3,
+      "window_id": "wet_1973",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed3_wet_1973_dispatch.csv",
+      "sha256": "84d5303b3845340b9c6f6a9d8bb70836af8e7e18e3ecb2956f30391aa89709b9",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "training_evaluation",
+        "seed": 3,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1973,
+          1974,
+          1975,
+          1976,
+          1977
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1973-01-01",
+        "end_date": "1977-12-30",
+        "energy_MWh": 1365101266.5979319,
+        "energy_TWh": 1365.101266597932,
+        "spill_volume_m3": 856741580483.4689,
+        "energy_by_reservoir_TWh": [
+          216.2524337790313,
+          305.38542132308487,
+          287.5993732698536,
+          160.58737799875283,
+          395.2766602272061
+        ],
+        "spill_by_reservoir_billion_m3": [
+          125.31073020605537,
+          139.35627758104235,
+          217.02590653206482,
+          241.9286517729319,
+          133.12001439137444
+        ],
+        "initial_storage_m3": [
+          5289711864.0,
+          17095681356.0,
+          10365593220.0,
+          4808644068.0,
+          36446779661.0
+        ],
+        "final_storage_m3": [
+          3091651271.3764396,
+          8731881876.526983,
+          5491688314.963715,
+          4499368558.473215,
+          17938784338.207455
+        ],
+        "total_storage_depletion_billion_m3": 34.25303580945219,
+        "max_balance_residual_m3": 3.5762786865234375e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 12.208398103256705,
+        "episode_generation_reward": 36.82067181744228,
+        "episode_penalty": 24.612273714185708,
+        "episode_global_reward": 36.82067181744228,
+        "episode_system_reward": 53.16076801534012,
+        "episode_penalty_guaranteed_output": 23.234242675189087,
+        "episode_penalty_ecological_flow": 1.378031038996624,
+        "penalty_by_reservoir": [
+          2.288253307979287,
+          5.486178049850237,
+          6.550524778578287,
+          4.832243476483507,
+          5.455074101294343
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 3961,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.4340821917808219,
+            "compliance_rate": 0.565917808219178,
+            "days_any_reservoir": 942,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4073.054552392368,
+            "mean_relative_shortfall": 0.16449728446635403,
+            "max_relative_shortfall": 0.7619310010648499,
+            "by_reservoir_days": [
+              631,
+              860,
+              905,
+              830,
+              735
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.6542465753424658,
+              0.5287671232876712,
+              0.5041095890410958,
+              0.5452054794520548,
+              0.5972602739726027
+            ],
+            "by_reservoir_max_shortfall": [
+              1459.009852437568,
+              3351.299771424966,
+              4073.054552392368,
+              1917.3337170971304,
+              2967.8885350578553
+            ],
+            "shortfall_energy_MWh": 150698378.0308789,
+            "by_reservoir_shortfall_energy_MWh": [
+              10019903.747698115,
+              38262459.48976764,
+              54830008.10556155,
+              21313811.717235696,
+              26272194.970615905
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 637,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.06980821917808219,
+            "compliance_rate": 0.9301917808219178,
+            "days_any_reservoir": 428,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2551.4944892805092,
+            "mean_relative_shortfall": 0.010624607406344603,
+            "max_relative_shortfall": 0.42524908154675156,
+            "by_reservoir_days": [
+              32,
+              97,
+              52,
+              52,
+              404
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.9824657534246576,
+              0.9468493150684931,
+              0.9715068493150685,
+              0.9715068493150685,
+              0.7786301369863013
+            ],
+            "by_reservoir_max_shortfall": [
+              170.56920757592707,
+              360.94297935851205,
+              235.9310779404941,
+              220.8306128421434,
+              2551.4944892805092
+            ],
+            "deficit_volume_m3": 41368985407.351395,
+            "by_reservoir_deficit_volume_m3": [
+              179872544.30590582,
+              1117983309.0658717,
+              405677644.3573099,
+              378258934.61957204,
+              39287192975.00273
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          34.425938971916096,
+          32.78849241439901,
+          43.014223031506596,
+          48.29103711445994,
+          34.042541251884366
+        ],
+        "episode_local_reward_penalties": [
+          11.441266539896453,
+          27.430890249251185,
+          32.752623892891336,
+          24.16121738241757,
+          27.275370506471706
+        ],
+        "episode_local_rewards": [
+          22.98467243201969,
+          5.357602165147675,
+          10.261599138615136,
+          24.12981973204247,
+          6.767170745412549
+        ],
+        "episode_mixed_rewards": [
+          29.902672124731055,
+          21.08913699129502,
+          23.541135478028725,
+          30.475245774742458,
+          21.79392128142746
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            11.413700646254417,
+            27.320435344685468,
+            32.703005834164145,
+            24.114529626807858,
+            20.619541924033282
+          ],
+          "ecological_flow": [
+            0.02756589364202247,
+            0.11045490456573155,
+            0.04961805872718062,
+            0.04668775560972432,
+            6.655828582438446
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    },
+    {
+      "seed": 3,
+      "window_id": "held_out_sequence",
+      "csv": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_analysis/seed3_held_out_sequence_dispatch.csv",
+      "sha256": "11710ae2a5e5d045d2e2a9ebf91d56f88217f4a446c373bbdb69b957fc3f9e63",
+      "rows": 9125,
+      "verification": {
+        "status": "matched_original_evaluation",
+        "maximum_absolute_metric_difference": 0.0,
+        "relative_tolerance": 1e-12,
+        "absolute_tolerance": 1e-09
+      },
+      "replay_summary": {
+        "status": "ok",
+        "phase": "evaluation",
+        "seed": 3,
+        "policy_update": 50,
+        "policy_episode": 300,
+        "training_steps": 547500,
+        "source_years": [
+          1998,
+          1999,
+          1970,
+          1997,
+          2006
+        ],
+        "episode_horizon_days": 1825,
+        "completed_steps": 1825,
+        "start_date": "1998-01-01",
+        "end_date": "2006-12-31",
+        "energy_MWh": 1174569387.9246304,
+        "energy_TWh": 1174.5693879246303,
+        "spill_volume_m3": 649242342528.8599,
+        "energy_by_reservoir_TWh": [
+          183.0697754136597,
+          259.8207144241363,
+          251.52244299426502,
+          142.90149081737206,
+          337.25496427519676
+        ],
+        "spill_by_reservoir_billion_m3": [
+          82.61208933884319,
+          97.67261331191736,
+          149.09040662027843,
+          167.05579523594622,
+          152.81143802187512
+        ],
+        "initial_storage_m3": [
+          5443271186.0,
+          17414067797.0,
+          10562677966.0,
+          4836193220.0,
+          36071355932.0
+        ],
+        "final_storage_m3": [
+          3149898550.181704,
+          8758191740.37243,
+          5358147110.470278,
+          4413177795.9417715,
+          18439889444.602726
+        ],
+        "total_storage_depletion_billion_m3": 34.20826145943109,
+        "max_balance_residual_m3": 2.1457672119140625e-06,
+        "daily_level_limits": true,
+        "action_bins": 100,
+        "feasible": true,
+        "violation_count": 0,
+        "max_daily_bound_excess_m3": 0.0,
+        "actor_observation_layout": "local_neighbors_next_day_limits_v2",
+        "actor_observation_size": 15,
+        "critic_state_size": 38,
+        "gamma": 0.99,
+        "episode_reward": 1.6621982926386538,
+        "episode_generation_reward": 33.652929472515055,
+        "episode_penalty": 31.990731179876285,
+        "episode_global_reward": 33.65292947251505,
+        "episode_system_reward": 24.502881721839067,
+        "episode_penalty_guaranteed_output": 30.399230600452483,
+        "episode_penalty_ecological_flow": 1.5915005794238166,
+        "penalty_by_reservoir": [
+          4.889260665925588,
+          7.351366568506894,
+          7.8905175698439525,
+          6.357246014999292,
+          5.50234036060059
+        ],
+        "service_shortfalls": {
+          "guaranteed_output": {
+            "reservoir_day_count": 4547,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.4983013698630137,
+            "compliance_rate": 0.5016986301369863,
+            "days_any_reservoir": 1055,
+            "shortfall_unit": "MW",
+            "max_shortfall": 4178.3435926530055,
+            "mean_relative_shortfall": 0.21103513309475325,
+            "max_relative_shortfall": 0.7816270259560031,
+            "by_reservoir_days": [
+              812,
+              955,
+              979,
+              916,
+              885
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.5550684931506848,
+              0.47671232876712333,
+              0.4635616438356165,
+              0.4980821917808219,
+              0.5150684931506849
+            ],
+            "by_reservoir_max_shortfall": [
+              1485.7013398282043,
+              3399.5113966185927,
+              4178.3435926530055,
+              1999.50651394029,
+              2993.540654771781
+            ],
+            "shortfall_energy_MWh": 189586731.99484977,
+            "by_reservoir_shortfall_energy_MWh": [
+              15277119.813341493,
+              49814385.13663409,
+              67683443.22247806,
+              28135898.478472997,
+              28675885.343923133
+            ]
+          },
+          "ecological_flow": {
+            "reservoir_day_count": 875,
+            "active_reservoir_days": 9125,
+            "reservoir_day_rate": 0.0958904109589041,
+            "compliance_rate": 0.904109589041096,
+            "days_any_reservoir": 447,
+            "shortfall_unit": "m3/s",
+            "max_shortfall": 2594.716259454221,
+            "mean_relative_shortfall": 0.014341350247319385,
+            "max_relative_shortfall": 0.43245270990903684,
+            "by_reservoir_days": [
+              73,
+              184,
+              113,
+              109,
+              396
+            ],
+            "by_reservoir_active_days": [
+              1825,
+              1825,
+              1825,
+              1825,
+              1825
+            ],
+            "by_reservoir_compliance_rate": [
+              0.96,
+              0.8991780821917809,
+              0.938082191780822,
+              0.9402739726027397,
+              0.783013698630137
+            ],
+            "by_reservoir_max_shortfall": [
+              193.96375792584797,
+              392.54512021005144,
+              311.8589148784839,
+              316.1885246928448,
+              2594.716259454221
+            ],
+            "deficit_volume_m3": 43250117793.09525,
+            "by_reservoir_deficit_volume_m3": [
+              500326992.7496075,
+              2461044293.0872903,
+              1406766237.7059414,
+              1404228279.1960433,
+              37477751990.35637
+            ]
+          }
+        },
+        "local_global_alpha": 0.5,
+        "actor_reward_definition": "half_local_reward_plus_half_global_generation_v1",
+        "system_reward_definition": "half_sum_local_rewards_plus_half_global_generation_v1",
+        "episode_local_generation_rewards": [
+          29.93590700342912,
+          29.746038609442977,
+          39.55224427369096,
+          44.28351375061457,
+          31.78878623336688
+        ],
+        "episode_local_reward_penalties": [
+          24.446303329628005,
+          36.75683284253445,
+          39.45258784921964,
+          31.78623007499652,
+          27.51170180300288
+        ],
+        "episode_local_rewards": [
+          5.489603673801247,
+          -7.010794233091309,
+          0.09965642447117873,
+          12.497283675618174,
+          4.277084430364044
+        ],
+        "episode_mixed_rewards": [
+          19.571266573158052,
+          13.321067619711764,
+          16.876292948493,
+          23.075106574066563,
+          18.965006951439555
+        ],
+        "episode_local_penalty_components": {
+          "guaranteed_output": [
+            24.200774859737876,
+            35.957783905620936,
+            39.29721889876141,
+            31.701919337289546,
+            20.83845600085257
+          ],
+          "ecological_flow": [
+            0.2455284698901273,
+            0.7990489369134519,
+            0.15536895045822036,
+            0.08431073770693522,
+            6.673245802150343
+          ]
+        },
+        "reward_definition": "generation_minus_mean_service_shortfalls_v1",
+        "service_requirements": {
+          "file": "reservoir_service_requirements.csv",
+          "sha256": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+          "reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "THR"
+          ],
+          "paper_reservoir_ids": [
+            "WDD",
+            "BHT",
+            "XLD",
+            "XJB",
+            "TGR"
+          ],
+          "guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "base_guaranteed_output_mw": [
+            2290.0,
+            4567.5,
+            5345.7,
+            2750.0,
+            4990.0
+          ],
+          "base_ecological_flow_m3s": [
+            900.0,
+            1160.0,
+            1160.0,
+            1200.0,
+            6000.0
+          ],
+          "threshold_scales": {
+            "guaranteed_output": 1.0,
+            "ecological_flow": 1.0
+          },
+          "time_basis": "constant_daily_requirement",
+          "source_value_status": "paper_reported",
+          "value_status": "paper_reported"
+        },
+        "reward_penalties": {
+          "enabled": true,
+          "guaranteed_output_weight": 1.0,
+          "ecological_flow_weight": 1.0
+        },
+        "action_overrides": [],
+        "trace_rows": 9125,
+        "value_interpretation": "saved frozen critic in reward units; realized reward-to-go is observational and does not reconstruct training advantages"
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "seed": 1,
+      "path": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_seed1_checkpoints/update_000050.pt",
+      "sha256": "8803ce2b957b5a1cbb139c24f323feea348c0f15222d3f5a700068891cec0081",
+      "data_hashes": {
+        "daily_incremental_inflows_1965_2024.csv": "265c16c233e74d0be2d309b5b01bfc3cafb7a63cefe98c8df6266c73f63373ef",
+        "initial_storage_1965_2024.csv": "b9e292c77bb72ae5c076354fc3ab044fd66211181da195dcc6eb6747e4d7d9d4",
+        "reservoir_stage_storage.csv": "86f1ba09cee090002bc349a8d97377c76a94c1a782f5c589d2e2d0bea0411988",
+        "reservoir_parameters.csv": "095a9ff1a0486ab716b069895370120e40304a72d06ff0c81d50e301104a528c",
+        "reservoir_head_sensitivity.csv": "c1cd6c2836aa676a1ade850416359337518d51fb56b2e0dc2827980c629a838f",
+        "reservoir_service_requirements.csv": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+        "five_reservoir_happo_input_bounds_1965_2024.csv": "7e70c1da96fb901296c5550d8ca25dbe27413c2047ae1aeeface5b150c26f852"
+      },
+      "source_hashes": {
+        "examples/plot_cascade.py": "2e0a66ee6a4af0f26f10c603264208b17f80a067624c7996e7b34fc36614bd6d",
+        "examples/plot_cascade_parallel.py": "c4e07f756a95341067eab452ee33eebb45c8e03d8c6ee60e763067de4050836f",
+        "examples/replay_cascade_checkpoint.py": "29a45d17c641cdf28a2e7d10bb38fed1453f64cfd17a80361841d51729d19390",
+        "examples/train_cascade.py": "18a1432ca17a2f5a63b6596d138915a21e9452dc385d275abb4f37794321162e",
+        "examples/train_cascade_parallel.py": "fc27d2c3fcef8fcf0986499ce9b1c631f4465ab40024789031b59fb3ff5d2626",
+        "harl/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/actors/__init__.py": "eee44f98e1c26a45c2656c8aee8eced5eb690a87ea87d8267204432ab2e6421e",
+        "harl/algorithms/actors/happo.py": "14a21031335735163b81a2acd96dc98b4e54bf1ff4a522a1f130612ad8fb1051",
+        "harl/algorithms/actors/joint_kl.py": "d766ef246ba551bbe46a03853516fa550ea688ed0176bf7da90ad6a2f0e05339",
+        "harl/algorithms/actors/on_policy_base.py": "6ad0b037e40bbadc19b8da29dae92461b70b7c2188349742e7dbc6f3c3ef7f51",
+        "harl/algorithms/critics/__init__.py": "409b7eecd464e139e906b70d6ef23a97426d1e184c19ff01962ff46bffc263b9",
+        "harl/algorithms/critics/v_critic.py": "e67a12eff97290f9125bc68536226acadfa92c9a1546de2acaf2a6bba2b2e84b",
+        "harl/common/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/on_policy_actor_buffer.py": "2149d3dc163992363301ee0954190f6925d1316242a9e63283ca0b78876d496c",
+        "harl/common/buffers/on_policy_critic_buffer_ep.py": "4b5620681ed83e0913e296806c84a09c43ba8c9934c4a86b66884c87bd6bc977",
+        "harl/common/valuenorm.py": "feb28cb31486e3e992315b2762ea18e29a0fa16a8d5c01dc5bde16a75b7986d6",
+        "harl/configs/algos_cfgs/happo_cascade.yaml": "bf0ec892318172e82ea5b379c72a1a0468419b2cdd734a933fe0c0e773ae4a4e",
+        "harl/configs/envs_cfgs/cascade_reservoir.yaml": "6090821f45b32a188cd7a3785295c8787d53c4f5757c76f7903eaeca5cee0562",
+        "harl/envs/__init__.py": "4a39b683e3a54558eacefc11a9b7a40b14e5932341b94bd88d617a8409b85a30",
+        "harl/envs/cascade_reservoir/__init__.py": "488052fc980aaff4b3a186b236c8d48d5dc6d073015e4c91974e366e6527db22",
+        "harl/envs/cascade_reservoir/cascade_reservoir_env.py": "57df86b802731c5af966c80caa112777c9d2f5fb0df78e60914255f3acd36071",
+        "harl/envs/cascade_reservoir/checkpoint.py": "889ae3f792a6b14b647f756316ee927319a435125e10adeda6d381e891c4feec",
+        "harl/envs/cascade_reservoir/data_loader.py": "182554889f673716cb18bb6d8ee3154de4ab3bd8113796ff75c48b399cefa290",
+        "harl/envs/cascade_reservoir/diagnostics.py": "4556d0a8dbdf1c9e25b73dad02f53d518f159a02654c8eea780700c44b2e0594",
+        "harl/envs/cascade_reservoir/episodes.py": "b96f488b740ee244f4d33ae49e79b9eeea65c58d75fde1f24e84b75b91fe0b05",
+        "harl/envs/cascade_reservoir/evaluation.py": "bb487468cad1152e30cffd568be0f867baba3ccf15eb43fecfd4e1db662fba81",
+        "harl/envs/cascade_reservoir/learning_signal.py": "f86fc79d6c218b5c5e09f54f2739edab4cbd69e7ad034501301157f12ab1eb6c",
+        "harl/envs/cascade_reservoir/parallel_env.py": "ba5ab4683833fbc6e47a79ea749baba51f6619af147bf7a42dcef2389cd02360",
+        "harl/envs/cascade_reservoir/periodic_evaluation.py": "1aa7c2d093f677b1a667a4b8738cf265db77f3ad0bea007f6511f04020130d48",
+        "harl/envs/cascade_reservoir/reservoir_physics.py": "f586c3da8114681359ec62802f5c4c9d364a4fb633232a8e6d4df348cf5cd63f",
+        "harl/envs/cascade_reservoir/reward.py": "d9de19fd3266976c9b87accea0a77bf0320066c6904196dfe2a9bc5ebd9d3fa5",
+        "harl/envs/cascade_reservoir/training_metrics.py": "7470ebec2aa25f57f08fc51309611da609169e748015ab7c9f23820cc534b8e1",
+        "harl/envs/cascade_reservoir/training_sampler.py": "5f271d41bb4f041a31e921f029d54e43f1e559bcf755f75c933192658ab2e1fa",
+        "harl/envs/cascade_reservoir/trajectory_diagnostics.py": "56a80bed86a62a51ab2410f6572f1ae1b8420dcda2b45cb5674013e180b33837",
+        "harl/envs/cascade_reservoir/xld_diagnostics.py": "4c34c402b58eea1473774c1ec1c66baafea4a0452de30dfd1c6cb17013318562",
+        "harl/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/act.py": "66484f08aa64769cc23842e386e032d85c61eb027a530ab0f4a2da118d9c1be0",
+        "harl/models/base/distributions.py": "df66744cc96c8adbb9815d81918e84d5f30f129050dca017c110636d52d7d66a",
+        "harl/models/base/mlp.py": "4e1fa93c6a0ecff75b76763789f91b73d12fb732b631ccda50e6a98b9aba0e39",
+        "harl/models/policy_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/policy_models/stochastic_policy.py": "a6dfecad77773b0e0f52e49eb23f7274ffb41325b4a5c6bcf835765ef9d7e592",
+        "harl/models/value_function_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/value_function_models/v_net.py": "695b41ac6b5be592c67503b069a7d7a6dbb83526b7a43740842a90ee80d00b1a",
+        "harl/runners/__init__.py": "905279bb16ac8a3a1762a83e707fb993dc9f3bf7e9320bfad19fbd7a35421f00",
+        "harl/runners/cascade_reservoir_runner.py": "642732d397ad212106df4ab63fd85f7c3f081f272a29ebdeb28e6e2bf43b5ffe",
+        "harl/runners/on_policy_base_runner.py": "9519d5f3992b5aa93f5bf358ff33b279f70395a9784a4376d92f353bab3aa7f4",
+        "harl/runners/on_policy_ha_runner.py": "54c3dc117985c57c860f4ad4c1981aea0eaf34f7a7c80db02523f947bc3f437a",
+        "harl/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/utils/envs_tools.py": "3fe8466fbc862425be88a6dd10d209afd755194789d014dddab3178871236ce5",
+        "harl/utils/models_tools.py": "2772f59d8a9a5a24f597d4c5fb053d695c4da8703eb3259c152cfdd2e31e31e8",
+        "harl/utils/trans_tools.py": "2a57ac818637c01ce4abc649ed3abb65cacb3435fcdee3ba8eb3e342e6558407",
+        "setup.py": "88d63c395888b8851914638e9ded8f45f0d49cd4fa53a05fa356efde7868c3ad"
+      },
+      "settings_sha256": "ceefe42ba4c4c44d6383e99fb759f2021d59e43089dfcd2c41c0b4c90a06ca3c"
+    },
+    {
+      "seed": 2,
+      "path": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_seed2_checkpoints/update_000050.pt",
+      "sha256": "d87547333ae7e85942229afed513d2d177681ce901c36e5162942918afec4bb9",
+      "data_hashes": {
+        "daily_incremental_inflows_1965_2024.csv": "265c16c233e74d0be2d309b5b01bfc3cafb7a63cefe98c8df6266c73f63373ef",
+        "initial_storage_1965_2024.csv": "b9e292c77bb72ae5c076354fc3ab044fd66211181da195dcc6eb6747e4d7d9d4",
+        "reservoir_stage_storage.csv": "86f1ba09cee090002bc349a8d97377c76a94c1a782f5c589d2e2d0bea0411988",
+        "reservoir_parameters.csv": "095a9ff1a0486ab716b069895370120e40304a72d06ff0c81d50e301104a528c",
+        "reservoir_head_sensitivity.csv": "c1cd6c2836aa676a1ade850416359337518d51fb56b2e0dc2827980c629a838f",
+        "reservoir_service_requirements.csv": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+        "five_reservoir_happo_input_bounds_1965_2024.csv": "7e70c1da96fb901296c5550d8ca25dbe27413c2047ae1aeeface5b150c26f852"
+      },
+      "source_hashes": {
+        "examples/plot_cascade.py": "2e0a66ee6a4af0f26f10c603264208b17f80a067624c7996e7b34fc36614bd6d",
+        "examples/plot_cascade_parallel.py": "c4e07f756a95341067eab452ee33eebb45c8e03d8c6ee60e763067de4050836f",
+        "examples/replay_cascade_checkpoint.py": "29a45d17c641cdf28a2e7d10bb38fed1453f64cfd17a80361841d51729d19390",
+        "examples/train_cascade.py": "18a1432ca17a2f5a63b6596d138915a21e9452dc385d275abb4f37794321162e",
+        "examples/train_cascade_parallel.py": "fc27d2c3fcef8fcf0986499ce9b1c631f4465ab40024789031b59fb3ff5d2626",
+        "harl/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/actors/__init__.py": "eee44f98e1c26a45c2656c8aee8eced5eb690a87ea87d8267204432ab2e6421e",
+        "harl/algorithms/actors/happo.py": "14a21031335735163b81a2acd96dc98b4e54bf1ff4a522a1f130612ad8fb1051",
+        "harl/algorithms/actors/joint_kl.py": "d766ef246ba551bbe46a03853516fa550ea688ed0176bf7da90ad6a2f0e05339",
+        "harl/algorithms/actors/on_policy_base.py": "6ad0b037e40bbadc19b8da29dae92461b70b7c2188349742e7dbc6f3c3ef7f51",
+        "harl/algorithms/critics/__init__.py": "409b7eecd464e139e906b70d6ef23a97426d1e184c19ff01962ff46bffc263b9",
+        "harl/algorithms/critics/v_critic.py": "e67a12eff97290f9125bc68536226acadfa92c9a1546de2acaf2a6bba2b2e84b",
+        "harl/common/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/on_policy_actor_buffer.py": "2149d3dc163992363301ee0954190f6925d1316242a9e63283ca0b78876d496c",
+        "harl/common/buffers/on_policy_critic_buffer_ep.py": "4b5620681ed83e0913e296806c84a09c43ba8c9934c4a86b66884c87bd6bc977",
+        "harl/common/valuenorm.py": "feb28cb31486e3e992315b2762ea18e29a0fa16a8d5c01dc5bde16a75b7986d6",
+        "harl/configs/algos_cfgs/happo_cascade.yaml": "bf0ec892318172e82ea5b379c72a1a0468419b2cdd734a933fe0c0e773ae4a4e",
+        "harl/configs/envs_cfgs/cascade_reservoir.yaml": "6090821f45b32a188cd7a3785295c8787d53c4f5757c76f7903eaeca5cee0562",
+        "harl/envs/__init__.py": "4a39b683e3a54558eacefc11a9b7a40b14e5932341b94bd88d617a8409b85a30",
+        "harl/envs/cascade_reservoir/__init__.py": "488052fc980aaff4b3a186b236c8d48d5dc6d073015e4c91974e366e6527db22",
+        "harl/envs/cascade_reservoir/cascade_reservoir_env.py": "57df86b802731c5af966c80caa112777c9d2f5fb0df78e60914255f3acd36071",
+        "harl/envs/cascade_reservoir/checkpoint.py": "889ae3f792a6b14b647f756316ee927319a435125e10adeda6d381e891c4feec",
+        "harl/envs/cascade_reservoir/data_loader.py": "182554889f673716cb18bb6d8ee3154de4ab3bd8113796ff75c48b399cefa290",
+        "harl/envs/cascade_reservoir/diagnostics.py": "4556d0a8dbdf1c9e25b73dad02f53d518f159a02654c8eea780700c44b2e0594",
+        "harl/envs/cascade_reservoir/episodes.py": "b96f488b740ee244f4d33ae49e79b9eeea65c58d75fde1f24e84b75b91fe0b05",
+        "harl/envs/cascade_reservoir/evaluation.py": "bb487468cad1152e30cffd568be0f867baba3ccf15eb43fecfd4e1db662fba81",
+        "harl/envs/cascade_reservoir/learning_signal.py": "f86fc79d6c218b5c5e09f54f2739edab4cbd69e7ad034501301157f12ab1eb6c",
+        "harl/envs/cascade_reservoir/parallel_env.py": "ba5ab4683833fbc6e47a79ea749baba51f6619af147bf7a42dcef2389cd02360",
+        "harl/envs/cascade_reservoir/periodic_evaluation.py": "1aa7c2d093f677b1a667a4b8738cf265db77f3ad0bea007f6511f04020130d48",
+        "harl/envs/cascade_reservoir/reservoir_physics.py": "f586c3da8114681359ec62802f5c4c9d364a4fb633232a8e6d4df348cf5cd63f",
+        "harl/envs/cascade_reservoir/reward.py": "d9de19fd3266976c9b87accea0a77bf0320066c6904196dfe2a9bc5ebd9d3fa5",
+        "harl/envs/cascade_reservoir/training_metrics.py": "7470ebec2aa25f57f08fc51309611da609169e748015ab7c9f23820cc534b8e1",
+        "harl/envs/cascade_reservoir/training_sampler.py": "5f271d41bb4f041a31e921f029d54e43f1e559bcf755f75c933192658ab2e1fa",
+        "harl/envs/cascade_reservoir/trajectory_diagnostics.py": "56a80bed86a62a51ab2410f6572f1ae1b8420dcda2b45cb5674013e180b33837",
+        "harl/envs/cascade_reservoir/xld_diagnostics.py": "4c34c402b58eea1473774c1ec1c66baafea4a0452de30dfd1c6cb17013318562",
+        "harl/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/act.py": "66484f08aa64769cc23842e386e032d85c61eb027a530ab0f4a2da118d9c1be0",
+        "harl/models/base/distributions.py": "df66744cc96c8adbb9815d81918e84d5f30f129050dca017c110636d52d7d66a",
+        "harl/models/base/mlp.py": "4e1fa93c6a0ecff75b76763789f91b73d12fb732b631ccda50e6a98b9aba0e39",
+        "harl/models/policy_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/policy_models/stochastic_policy.py": "a6dfecad77773b0e0f52e49eb23f7274ffb41325b4a5c6bcf835765ef9d7e592",
+        "harl/models/value_function_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/value_function_models/v_net.py": "695b41ac6b5be592c67503b069a7d7a6dbb83526b7a43740842a90ee80d00b1a",
+        "harl/runners/__init__.py": "905279bb16ac8a3a1762a83e707fb993dc9f3bf7e9320bfad19fbd7a35421f00",
+        "harl/runners/cascade_reservoir_runner.py": "642732d397ad212106df4ab63fd85f7c3f081f272a29ebdeb28e6e2bf43b5ffe",
+        "harl/runners/on_policy_base_runner.py": "9519d5f3992b5aa93f5bf358ff33b279f70395a9784a4376d92f353bab3aa7f4",
+        "harl/runners/on_policy_ha_runner.py": "54c3dc117985c57c860f4ad4c1981aea0eaf34f7a7c80db02523f947bc3f437a",
+        "harl/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/utils/envs_tools.py": "3fe8466fbc862425be88a6dd10d209afd755194789d014dddab3178871236ce5",
+        "harl/utils/models_tools.py": "2772f59d8a9a5a24f597d4c5fb053d695c4da8703eb3259c152cfdd2e31e31e8",
+        "harl/utils/trans_tools.py": "2a57ac818637c01ce4abc649ed3abb65cacb3435fcdee3ba8eb3e342e6558407",
+        "setup.py": "88d63c395888b8851914638e9ded8f45f0d49cd4fa53a05fa356efde7868c3ad"
+      },
+      "settings_sha256": "ceefe42ba4c4c44d6383e99fb759f2021d59e43089dfcd2c41c0b4c90a06ca3c"
+    },
+    {
+      "seed": 3,
+      "path": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_seed3_checkpoints/update_000050.pt",
+      "sha256": "7fe5fd7c213e3b802187b07261662756afe273682789c75599c6f73998e277f8",
+      "data_hashes": {
+        "daily_incremental_inflows_1965_2024.csv": "265c16c233e74d0be2d309b5b01bfc3cafb7a63cefe98c8df6266c73f63373ef",
+        "initial_storage_1965_2024.csv": "b9e292c77bb72ae5c076354fc3ab044fd66211181da195dcc6eb6747e4d7d9d4",
+        "reservoir_stage_storage.csv": "86f1ba09cee090002bc349a8d97377c76a94c1a782f5c589d2e2d0bea0411988",
+        "reservoir_parameters.csv": "095a9ff1a0486ab716b069895370120e40304a72d06ff0c81d50e301104a528c",
+        "reservoir_head_sensitivity.csv": "c1cd6c2836aa676a1ade850416359337518d51fb56b2e0dc2827980c629a838f",
+        "reservoir_service_requirements.csv": "6e859bace3f14d7260be788286540cc184a511250f3ef8fec67929f0a2c310d2",
+        "five_reservoir_happo_input_bounds_1965_2024.csv": "7e70c1da96fb901296c5550d8ca25dbe27413c2047ae1aeeface5b150c26f852"
+      },
+      "source_hashes": {
+        "examples/plot_cascade.py": "2e0a66ee6a4af0f26f10c603264208b17f80a067624c7996e7b34fc36614bd6d",
+        "examples/plot_cascade_parallel.py": "c4e07f756a95341067eab452ee33eebb45c8e03d8c6ee60e763067de4050836f",
+        "examples/replay_cascade_checkpoint.py": "29a45d17c641cdf28a2e7d10bb38fed1453f64cfd17a80361841d51729d19390",
+        "examples/train_cascade.py": "18a1432ca17a2f5a63b6596d138915a21e9452dc385d275abb4f37794321162e",
+        "examples/train_cascade_parallel.py": "fc27d2c3fcef8fcf0986499ce9b1c631f4465ab40024789031b59fb3ff5d2626",
+        "harl/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/algorithms/actors/__init__.py": "eee44f98e1c26a45c2656c8aee8eced5eb690a87ea87d8267204432ab2e6421e",
+        "harl/algorithms/actors/happo.py": "14a21031335735163b81a2acd96dc98b4e54bf1ff4a522a1f130612ad8fb1051",
+        "harl/algorithms/actors/joint_kl.py": "d766ef246ba551bbe46a03853516fa550ea688ed0176bf7da90ad6a2f0e05339",
+        "harl/algorithms/actors/on_policy_base.py": "6ad0b037e40bbadc19b8da29dae92461b70b7c2188349742e7dbc6f3c3ef7f51",
+        "harl/algorithms/critics/__init__.py": "409b7eecd464e139e906b70d6ef23a97426d1e184c19ff01962ff46bffc263b9",
+        "harl/algorithms/critics/v_critic.py": "e67a12eff97290f9125bc68536226acadfa92c9a1546de2acaf2a6bba2b2e84b",
+        "harl/common/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/common/buffers/on_policy_actor_buffer.py": "2149d3dc163992363301ee0954190f6925d1316242a9e63283ca0b78876d496c",
+        "harl/common/buffers/on_policy_critic_buffer_ep.py": "4b5620681ed83e0913e296806c84a09c43ba8c9934c4a86b66884c87bd6bc977",
+        "harl/common/valuenorm.py": "feb28cb31486e3e992315b2762ea18e29a0fa16a8d5c01dc5bde16a75b7986d6",
+        "harl/configs/algos_cfgs/happo_cascade.yaml": "bf0ec892318172e82ea5b379c72a1a0468419b2cdd734a933fe0c0e773ae4a4e",
+        "harl/configs/envs_cfgs/cascade_reservoir.yaml": "6090821f45b32a188cd7a3785295c8787d53c4f5757c76f7903eaeca5cee0562",
+        "harl/envs/__init__.py": "4a39b683e3a54558eacefc11a9b7a40b14e5932341b94bd88d617a8409b85a30",
+        "harl/envs/cascade_reservoir/__init__.py": "488052fc980aaff4b3a186b236c8d48d5dc6d073015e4c91974e366e6527db22",
+        "harl/envs/cascade_reservoir/cascade_reservoir_env.py": "57df86b802731c5af966c80caa112777c9d2f5fb0df78e60914255f3acd36071",
+        "harl/envs/cascade_reservoir/checkpoint.py": "889ae3f792a6b14b647f756316ee927319a435125e10adeda6d381e891c4feec",
+        "harl/envs/cascade_reservoir/data_loader.py": "182554889f673716cb18bb6d8ee3154de4ab3bd8113796ff75c48b399cefa290",
+        "harl/envs/cascade_reservoir/diagnostics.py": "4556d0a8dbdf1c9e25b73dad02f53d518f159a02654c8eea780700c44b2e0594",
+        "harl/envs/cascade_reservoir/episodes.py": "b96f488b740ee244f4d33ae49e79b9eeea65c58d75fde1f24e84b75b91fe0b05",
+        "harl/envs/cascade_reservoir/evaluation.py": "bb487468cad1152e30cffd568be0f867baba3ccf15eb43fecfd4e1db662fba81",
+        "harl/envs/cascade_reservoir/learning_signal.py": "f86fc79d6c218b5c5e09f54f2739edab4cbd69e7ad034501301157f12ab1eb6c",
+        "harl/envs/cascade_reservoir/parallel_env.py": "ba5ab4683833fbc6e47a79ea749baba51f6619af147bf7a42dcef2389cd02360",
+        "harl/envs/cascade_reservoir/periodic_evaluation.py": "1aa7c2d093f677b1a667a4b8738cf265db77f3ad0bea007f6511f04020130d48",
+        "harl/envs/cascade_reservoir/reservoir_physics.py": "f586c3da8114681359ec62802f5c4c9d364a4fb633232a8e6d4df348cf5cd63f",
+        "harl/envs/cascade_reservoir/reward.py": "d9de19fd3266976c9b87accea0a77bf0320066c6904196dfe2a9bc5ebd9d3fa5",
+        "harl/envs/cascade_reservoir/training_metrics.py": "7470ebec2aa25f57f08fc51309611da609169e748015ab7c9f23820cc534b8e1",
+        "harl/envs/cascade_reservoir/training_sampler.py": "5f271d41bb4f041a31e921f029d54e43f1e559bcf755f75c933192658ab2e1fa",
+        "harl/envs/cascade_reservoir/trajectory_diagnostics.py": "56a80bed86a62a51ab2410f6572f1ae1b8420dcda2b45cb5674013e180b33837",
+        "harl/envs/cascade_reservoir/xld_diagnostics.py": "4c34c402b58eea1473774c1ec1c66baafea4a0452de30dfd1c6cb17013318562",
+        "harl/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/base/act.py": "66484f08aa64769cc23842e386e032d85c61eb027a530ab0f4a2da118d9c1be0",
+        "harl/models/base/distributions.py": "df66744cc96c8adbb9815d81918e84d5f30f129050dca017c110636d52d7d66a",
+        "harl/models/base/mlp.py": "4e1fa93c6a0ecff75b76763789f91b73d12fb732b631ccda50e6a98b9aba0e39",
+        "harl/models/policy_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/policy_models/stochastic_policy.py": "a6dfecad77773b0e0f52e49eb23f7274ffb41325b4a5c6bcf835765ef9d7e592",
+        "harl/models/value_function_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/models/value_function_models/v_net.py": "695b41ac6b5be592c67503b069a7d7a6dbb83526b7a43740842a90ee80d00b1a",
+        "harl/runners/__init__.py": "905279bb16ac8a3a1762a83e707fb993dc9f3bf7e9320bfad19fbd7a35421f00",
+        "harl/runners/cascade_reservoir_runner.py": "642732d397ad212106df4ab63fd85f7c3f081f272a29ebdeb28e6e2bf43b5ffe",
+        "harl/runners/on_policy_base_runner.py": "9519d5f3992b5aa93f5bf358ff33b279f70395a9784a4376d92f353bab3aa7f4",
+        "harl/runners/on_policy_ha_runner.py": "54c3dc117985c57c860f4ad4c1981aea0eaf34f7a7c80db02523f947bc3f437a",
+        "harl/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "harl/utils/envs_tools.py": "3fe8466fbc862425be88a6dd10d209afd755194789d014dddab3178871236ce5",
+        "harl/utils/models_tools.py": "2772f59d8a9a5a24f597d4c5fb053d695c4da8703eb3259c152cfdd2e31e31e8",
+        "harl/utils/trans_tools.py": "2a57ac818637c01ce4abc649ed3abb65cacb3435fcdee3ba8eb3e342e6558407",
+        "setup.py": "88d63c395888b8851914638e9ded8f45f0d49cd4fa53a05fa356efde7868c3ad"
+      },
+      "settings_sha256": "ceefe42ba4c4c44d6383e99fb759f2021d59e43089dfcd2c41c0b4c90a06ca3c"
+    }
+  ],
+  "torch_version": "2.4.1",
+  "numpy_version": "1.24.4",
+  "reference_source_snapshot": {
+    "original_workspace": "/Users/hujingxin/Documents/Code_python/HARL-main",
+    "isolated_source_root": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_dispatch_reference_source",
+    "reference_checkpoint": "/Users/hujingxin/Documents/Code_python/HARL-main/runs/happo_seeds123_20261103_154615_seed1_checkpoints/update_000050.pt",
+    "checkpoint_sha256": "8803ce2b957b5a1cbb139c24f323feea348c0f15222d3f5a700068891cec0081",
+    "source_hashes": {
+      "examples/plot_cascade.py": "2e0a66ee6a4af0f26f10c603264208b17f80a067624c7996e7b34fc36614bd6d",
+      "examples/plot_cascade_parallel.py": "c4e07f756a95341067eab452ee33eebb45c8e03d8c6ee60e763067de4050836f",
+      "examples/replay_cascade_checkpoint.py": "29a45d17c641cdf28a2e7d10bb38fed1453f64cfd17a80361841d51729d19390",
+      "examples/train_cascade.py": "18a1432ca17a2f5a63b6596d138915a21e9452dc385d275abb4f37794321162e",
+      "examples/train_cascade_parallel.py": "fc27d2c3fcef8fcf0986499ce9b1c631f4465ab40024789031b59fb3ff5d2626",
+      "harl/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/algorithms/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/algorithms/actors/__init__.py": "eee44f98e1c26a45c2656c8aee8eced5eb690a87ea87d8267204432ab2e6421e",
+      "harl/algorithms/actors/happo.py": "14a21031335735163b81a2acd96dc98b4e54bf1ff4a522a1f130612ad8fb1051",
+      "harl/algorithms/actors/joint_kl.py": "d766ef246ba551bbe46a03853516fa550ea688ed0176bf7da90ad6a2f0e05339",
+      "harl/algorithms/actors/on_policy_base.py": "6ad0b037e40bbadc19b8da29dae92461b70b7c2188349742e7dbc6f3c3ef7f51",
+      "harl/algorithms/critics/__init__.py": "409b7eecd464e139e906b70d6ef23a97426d1e184c19ff01962ff46bffc263b9",
+      "harl/algorithms/critics/v_critic.py": "e67a12eff97290f9125bc68536226acadfa92c9a1546de2acaf2a6bba2b2e84b",
+      "harl/common/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/common/buffers/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/common/buffers/on_policy_actor_buffer.py": "2149d3dc163992363301ee0954190f6925d1316242a9e63283ca0b78876d496c",
+      "harl/common/buffers/on_policy_critic_buffer_ep.py": "4b5620681ed83e0913e296806c84a09c43ba8c9934c4a86b66884c87bd6bc977",
+      "harl/common/valuenorm.py": "feb28cb31486e3e992315b2762ea18e29a0fa16a8d5c01dc5bde16a75b7986d6",
+      "harl/configs/algos_cfgs/happo_cascade.yaml": "bf0ec892318172e82ea5b379c72a1a0468419b2cdd734a933fe0c0e773ae4a4e",
+      "harl/configs/envs_cfgs/cascade_reservoir.yaml": "6090821f45b32a188cd7a3785295c8787d53c4f5757c76f7903eaeca5cee0562",
+      "harl/envs/__init__.py": "4a39b683e3a54558eacefc11a9b7a40b14e5932341b94bd88d617a8409b85a30",
+      "harl/envs/cascade_reservoir/__init__.py": "488052fc980aaff4b3a186b236c8d48d5dc6d073015e4c91974e366e6527db22",
+      "harl/envs/cascade_reservoir/cascade_reservoir_env.py": "57df86b802731c5af966c80caa112777c9d2f5fb0df78e60914255f3acd36071",
+      "harl/envs/cascade_reservoir/checkpoint.py": "889ae3f792a6b14b647f756316ee927319a435125e10adeda6d381e891c4feec",
+      "harl/envs/cascade_reservoir/data_loader.py": "182554889f673716cb18bb6d8ee3154de4ab3bd8113796ff75c48b399cefa290",
+      "harl/envs/cascade_reservoir/diagnostics.py": "4556d0a8dbdf1c9e25b73dad02f53d518f159a02654c8eea780700c44b2e0594",
+      "harl/envs/cascade_reservoir/episodes.py": "b96f488b740ee244f4d33ae49e79b9eeea65c58d75fde1f24e84b75b91fe0b05",
+      "harl/envs/cascade_reservoir/evaluation.py": "bb487468cad1152e30cffd568be0f867baba3ccf15eb43fecfd4e1db662fba81",
+      "harl/envs/cascade_reservoir/learning_signal.py": "f86fc79d6c218b5c5e09f54f2739edab4cbd69e7ad034501301157f12ab1eb6c",
+      "harl/envs/cascade_reservoir/parallel_env.py": "ba5ab4683833fbc6e47a79ea749baba51f6619af147bf7a42dcef2389cd02360",
+      "harl/envs/cascade_reservoir/periodic_evaluation.py": "1aa7c2d093f677b1a667a4b8738cf265db77f3ad0bea007f6511f04020130d48",
+      "harl/envs/cascade_reservoir/reservoir_physics.py": "f586c3da8114681359ec62802f5c4c9d364a4fb633232a8e6d4df348cf5cd63f",
+      "harl/envs/cascade_reservoir/reward.py": "d9de19fd3266976c9b87accea0a77bf0320066c6904196dfe2a9bc5ebd9d3fa5",
+      "harl/envs/cascade_reservoir/training_metrics.py": "7470ebec2aa25f57f08fc51309611da609169e748015ab7c9f23820cc534b8e1",
+      "harl/envs/cascade_reservoir/training_sampler.py": "5f271d41bb4f041a31e921f029d54e43f1e559bcf755f75c933192658ab2e1fa",
+      "harl/envs/cascade_reservoir/trajectory_diagnostics.py": "56a80bed86a62a51ab2410f6572f1ae1b8420dcda2b45cb5674013e180b33837",
+      "harl/envs/cascade_reservoir/xld_diagnostics.py": "4c34c402b58eea1473774c1ec1c66baafea4a0452de30dfd1c6cb17013318562",
+      "harl/models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/models/base/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/models/base/act.py": "66484f08aa64769cc23842e386e032d85c61eb027a530ab0f4a2da118d9c1be0",
+      "harl/models/base/distributions.py": "df66744cc96c8adbb9815d81918e84d5f30f129050dca017c110636d52d7d66a",
+      "harl/models/base/mlp.py": "4e1fa93c6a0ecff75b76763789f91b73d12fb732b631ccda50e6a98b9aba0e39",
+      "harl/models/policy_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/models/policy_models/stochastic_policy.py": "a6dfecad77773b0e0f52e49eb23f7274ffb41325b4a5c6bcf835765ef9d7e592",
+      "harl/models/value_function_models/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/models/value_function_models/v_net.py": "695b41ac6b5be592c67503b069a7d7a6dbb83526b7a43740842a90ee80d00b1a",
+      "harl/runners/__init__.py": "905279bb16ac8a3a1762a83e707fb993dc9f3bf7e9320bfad19fbd7a35421f00",
+      "harl/runners/cascade_reservoir_runner.py": "642732d397ad212106df4ab63fd85f7c3f081f272a29ebdeb28e6e2bf43b5ffe",
+      "harl/runners/on_policy_base_runner.py": "9519d5f3992b5aa93f5bf358ff33b279f70395a9784a4376d92f353bab3aa7f4",
+      "harl/runners/on_policy_ha_runner.py": "54c3dc117985c57c860f4ad4c1981aea0eaf34f7a7c80db02523f947bc3f437a",
+      "harl/utils/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "harl/utils/envs_tools.py": "3fe8466fbc862425be88a6dd10d209afd755194789d014dddab3178871236ce5",
+      "harl/utils/models_tools.py": "2772f59d8a9a5a24f597d4c5fb053d695c4da8703eb3259c152cfdd2e31e31e8",
+      "harl/utils/trans_tools.py": "2a57ac818637c01ce4abc649ed3abb65cacb3435fcdee3ba8eb3e342e6558407",
+      "setup.py": "88d63c395888b8851914638e9ded8f45f0d49cd4fa53a05fa356efde7868c3ad"
+    },
+    "source_origins": {
+      "examples/plot_cascade.py": "current_matching_file",
+      "examples/plot_cascade_parallel.py": "current_matching_file",
+      "examples/replay_cascade_checkpoint.py": "current_matching_file",
+      "examples/train_cascade.py": "current_matching_file",
+      "examples/train_cascade_parallel.py": "current_matching_file",
+      "harl/__init__.py": "current_matching_file",
+      "harl/algorithms/__init__.py": "current_matching_file",
+      "harl/algorithms/actors/__init__.py": "current_matching_file",
+      "harl/algorithms/actors/happo.py": "current_matching_file",
+      "harl/algorithms/actors/joint_kl.py": "current_matching_file",
+      "harl/algorithms/actors/on_policy_base.py": "current_matching_file",
+      "harl/algorithms/critics/__init__.py": "current_matching_file",
+      "harl/algorithms/critics/v_critic.py": "current_matching_file",
+      "harl/common/__init__.py": "current_matching_file",
+      "harl/common/buffers/__init__.py": "current_matching_file",
+      "harl/common/buffers/on_policy_actor_buffer.py": "current_matching_file",
+      "harl/common/buffers/on_policy_critic_buffer_ep.py": "current_matching_file",
+      "harl/common/valuenorm.py": "current_matching_file",
+      "harl/configs/algos_cfgs/happo_cascade.yaml": "current_matching_file",
+      "harl/configs/envs_cfgs/cascade_reservoir.yaml": "matching_git_HEAD_snapshot",
+      "harl/envs/__init__.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/__init__.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/cascade_reservoir_env.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/checkpoint.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/data_loader.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/diagnostics.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/episodes.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/evaluation.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/learning_signal.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/parallel_env.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/periodic_evaluation.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/reservoir_physics.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/reward.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/training_metrics.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/training_sampler.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/trajectory_diagnostics.py": "current_matching_file",
+      "harl/envs/cascade_reservoir/xld_diagnostics.py": "current_matching_file",
+      "harl/models/__init__.py": "current_matching_file",
+      "harl/models/base/__init__.py": "current_matching_file",
+      "harl/models/base/act.py": "current_matching_file",
+      "harl/models/base/distributions.py": "current_matching_file",
+      "harl/models/base/mlp.py": "current_matching_file",
+      "harl/models/policy_models/__init__.py": "current_matching_file",
+      "harl/models/policy_models/stochastic_policy.py": "current_matching_file",
+      "harl/models/value_function_models/__init__.py": "current_matching_file",
+      "harl/models/value_function_models/v_net.py": "current_matching_file",
+      "harl/runners/__init__.py": "current_matching_file",
+      "harl/runners/cascade_reservoir_runner.py": "current_matching_file",
+      "harl/runners/on_policy_base_runner.py": "current_matching_file",
+      "harl/runners/on_policy_ha_runner.py": "current_matching_file",
+      "harl/utils/__init__.py": "current_matching_file",
+      "harl/utils/envs_tools.py": "current_matching_file",
+      "harl/utils/models_tools.py": "current_matching_file",
+      "harl/utils/trans_tools.py": "current_matching_file",
+      "setup.py": "current_matching_file"
+    },
+    "saved_physical_settings": {
+      "head_model": "storage_sensitivity",
+      "reservoir_ids": [
+        "WDD",
+        "BHT",
+        "XLD",
+        "XJB",
+        "THR"
+      ],
+      "level_bounds_m": {
+        "WDD": [
+          945,
+          975
+        ],
+        "BHT": [
+          765,
+          825
+        ],
+        "XLD": [
+          540,
+          600
+        ],
+        "XJB": [
+          370,
+          380
+        ],
+        "THR": [
+          145,
+          175
+        ]
+      },
+      "efficiency": 0.9,
+      "water_density_kg_m3": 1000.0,
+      "gravity_m_s2": 9.81,
+      "timestep_seconds": 86400.0,
+      "release_mapping": "quadratic",
+      "use_daily_level_limits": true,
+      "load_service_requirements": true,
+      "guaranteed_output_scale": 1.0,
+      "ecological_flow_scale": 1.0,
+      "reward_penalties": {
+        "enabled": true,
+        "guaranteed_output_weight": 1.0,
+        "ecological_flow_weight": 1.0
+      }
+    },
+    "reason": "Current environment YAML changed to .4/.4; saved run used1/1. All original source fingerprints restored exactly in isolated copy; user files preserved."
+  },
+  "total_daily_reservoir_rows": 109500
+}
