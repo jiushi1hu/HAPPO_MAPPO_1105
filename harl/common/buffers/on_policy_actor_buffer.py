@@ -5,6 +5,20 @@ import numpy as np
 from harl.utils.envs_tools import get_shape_from_obs_space, get_shape_from_act_space
 
 
+def _guarantee_costs(values, shape):
+    costs = np.asarray(values)
+    numeric = (np.issubdtype(costs.dtype, np.integer) or np.issubdtype(costs.dtype, np.floating)
+               or np.issubdtype(costs.dtype, np.bool_))
+    if (costs.shape != shape or not numeric or not np.isfinite(costs).all()
+            or (costs < 0.).any()):
+        raise ValueError('Guarantee action costs must be finite nonnegative values with shape '+str(shape))
+    with np.errstate(over='ignore'):
+        costs = costs.astype(np.float32, copy=False)
+    if not np.isfinite(costs).all():
+        raise ValueError('Guarantee action costs must remain finite in the actor buffer dtype')
+    return costs
+
+
 class OnPolicyActorBuffer:
     """On-policy buffer for actor data storage."""
 
@@ -50,6 +64,9 @@ class OnPolicyActorBuffer:
         self.active_masks = np.ones_like(self.masks)
 
         self.factor = None
+        # Optional frozen, model-derived costs for every own command. These
+        # neither mask commands nor replace the actually sampled action.
+        self.guarantee_action_costs = None
 
         self.step = 0
 
@@ -65,8 +82,18 @@ class OnPolicyActorBuffer:
         masks,
         active_masks=None,
         available_actions=None,
+        guarantee_action_costs=None,
     ):
         """Insert data into actor buffer."""
+        if guarantee_action_costs is not None:
+            shape = (self.n_rollout_threads, self.available_actions.shape[-1])
+            costs = _guarantee_costs(guarantee_action_costs, shape)
+            if self.guarantee_action_costs is None:
+                self.guarantee_action_costs = np.full(
+                    (self.episode_length, *shape), np.nan, dtype=np.float32)
+            self.guarantee_action_costs[self.step] = costs
+        elif self.guarantee_action_costs is not None:
+            self.guarantee_action_costs[self.step] = np.nan
         self.obs[self.step + 1] = obs.copy()
         self.actions[self.step] = actions.copy()
         self.action_log_probs[self.step] = action_log_probs.copy()
@@ -141,6 +168,10 @@ class OnPolicyActorBuffer:
                 not np.isfinite(objective_weights).all() or (objective_weights < 0.).any()):
             raise ValueError("Objective weights must be finite nonnegative rollout scalars")
         objective_weights = objective_weights.reshape(-1, 1)
+        guarantee_costs = (None if self.guarantee_action_costs is None else _guarantee_costs(
+            self.guarantee_action_costs,
+            (episode_length, n_rollout_threads, self.available_actions.shape[-1])
+        ).reshape(batch_size, -1))
 
         
         for indices in sampler:
@@ -155,6 +186,7 @@ class OnPolicyActorBuffer:
             adv_targ = advantages[indices]
             factor_batch = factor[indices]
             # Apply the same permutation to time weights and action likelihoods.
-            yield (obs_batch, actions_batch, masks_batch, active_masks_batch,
-                   old_action_log_probs_batch, adv_targ, available_actions_batch,
-                   factor_batch, objective_weights[indices])
+            sample = (obs_batch, actions_batch, masks_batch, active_masks_batch,
+                      old_action_log_probs_batch, adv_targ, available_actions_batch,
+                      factor_batch, objective_weights[indices])
+            yield sample if guarantee_costs is None else sample+(guarantee_costs[indices],)

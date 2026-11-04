@@ -44,19 +44,31 @@ table. Its SHA-256, reservoir IDs, base and effective thresholds, and sensitivit
 scales appear in startup, episode, and evaluation metadata. No other column of
 the paper's Table A.1 is imported.
 
-The shared daily reward is cascade energy divided by maximum daily cascade  
+The retained legacy team metric is cascade energy divided by maximum daily cascade
 energy, minus two weighted averages of relative shortfalls. Each shortfall is  
 `max(requirement - actual, 0) / requirement`, averaged over that term's fixed  
 positive-requirement set. Both weights default to 1.0; they are explicit  
-tradeoffs, not calibrated costs. This follows the paper's relative-deficit penalty  
-form while retaining the repository's common team objective, rather than  
-reproducing the paper's entire local/global reward mixture.
+tradeoffs, not calibrated costs. Actors instead learn separate 50/50 local/global
+mixed rewards. Their local term includes relative deficits plus the configured
+`guaranteed_output_violation_weight` times the existing tolerance-filtered power
+violation indicator. That soft frequency cost defaults to 1 in the current YAML
+and to 0 when omitted from a configuration. It leaves the legacy metric,
+thresholds, physical transitions and compliance counts unchanged. No service
+action override or hard output floor is introduced.
+
+The current algorithm additionally uses a training-only soft imitation loss.
+Candidate commands are labeled with the original power and enabled ecological
+requirements under the same head/storage model. A small discretionary-release
+tie-breaker selects a low-water service-meeting target. The actor is encouraged,
+but never forced, to select it; rows with no service-meeting candidate and
+constant-cost rows provide no imitation loss. This auxiliary objective is separate from environment reward
+accounting and does not change any physical compliance metric.
 
 For the current five positive requirements, generation is in [0,1], each mean  
 relative shortfall is in [0,1], and the unit-weight daily reward is in [-2,1].  
 Negative rewards are retained. A relative tolerance of 1e-10 excludes floating  
 point roundoff from both costs and shortfall counts. All reward components use  
-the same configured episode discount (YAML default gamma=0.99; gamma=1 gives  
+the same configured episode discount (YAML default gamma=1 gives
 the undiscounted five-year episode objective); physical compliance rates,  
 shortfall energy, and deficit volumes are never discounted. A cascade sum of  
 ecological deficits is a sum over outlet service requirements, not unique  

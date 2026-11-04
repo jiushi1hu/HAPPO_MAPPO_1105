@@ -121,8 +121,24 @@ def run_parallel_experiment(data,physical,config,args):
                    list((ROOT/'harl/configs').rglob('*.yaml')))
     metadata=dict(record_type='run_configuration',collection_mode='five_year_parallel',
         learning_reward_architecture=dict(alpha=0.5,
+            guaranteed_output_auxiliary=dict(
+                coefficient=config['algo'].get('guarantee_auxiliary_coef', 0.),
+                mode=config['algo'].get('guarantee_auxiliary_mode', 'expected_cost'),
+                discretionary_water_weight=config['algo'].get('guarantee_auxiliary_water_weight', 0.),
+                enabled=bool(physical.get('reward_penalties', {}).get('enabled', False) and
+                             config['algo'].get('guarantee_auxiliary_coef', 0.) > 0.),
+                cost='binary actual output-or-ecology violation plus configured discretionary '
+                     'release fraction cost for every own command, '
+                     'conditional on frozen sampled other commands; exact candidate head/storage',
+                objective='additional soft expected cost, or target-command NLL in feasible_imitation '
+                          'mode; target is lowest discretionary release meeting enabled services; '
+                          'unattainable and constant-cost rows have no imitation loss; '
+                          'episode-start, controllability and preceding-agent likelihood weights',
+                execution='training only; no command replacement, feasibility masking or threshold changes'),
             actor_reward='0.5 * own local reward + 0.5 * global generation reward',
-            local_reward='own power / installed capacity - own weighted relative service deficits',
+            local_reward='own power / installed capacity - own weighted relative service deficits '
+                '- guaranteed_output_violation_weight * own guaranteed-output violation indicator; '
+                'all service costs are disabled when reward penalties are disabled',
             system_reward='0.5 * sum(local rewards) + 0.5 * global generation reward',
             critic='one centralized network: five mixed-return outputs plus one legacy-team diagnostic output',
             actor_advantages='own mixed-return GAE and own value output; normalize each channel independently',

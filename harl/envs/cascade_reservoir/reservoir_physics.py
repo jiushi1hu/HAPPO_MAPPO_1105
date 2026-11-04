@@ -1,6 +1,6 @@
 """Double-precision water balance and exact current-day chain feasibility."""
 import numpy as np
-from harl.envs.cascade_reservoir.data_loader import HEAD_MODELS
+from harl.envs.cascade_reservoir.data_loader import HEAD_MODELS, IDS
 
 
 class InfeasibleCascade(RuntimeError):
@@ -82,6 +82,110 @@ class ReservoirPhysics:
         result.update(net_head_m=head, effective_turbine_cap_m3s=cap.copy(),
                       turbine=turbine, spill=release-turbine, power=power, energy=24.*power)
         return result
+
+    def guaranteed_output_action_costs(self, transition, action_bins, thresholds, water_weight=0.,
+                                       ecological_thresholds=None):
+        """Own-service union indicators plus optional discretionary-water costs.
+
+        Each row changes only that reservoir's command from the supplied actual
+        transition. Its upstream commands, inflow and feasible interval therefore
+        stay fixed. Downstream physical releases need not stay fixed. Costs use
+        the same daily mean-head model and shortfall tolerance as execution.
+        A command costs one if either its active output or ecological total-flow
+        requirement is missed. Omitted ecological thresholds disable that term.
+        When either service is active, water_weight adds the fraction of the
+        controllable release interval used (u squared). Forced rows have no
+        discretionary-water cost. A zero weight preserves the binary indicator;
+        the overall loss coefficient and training masks belong to the caller.
+        """
+        if (isinstance(action_bins, (bool, np.bool_)) or
+                not isinstance(action_bins, (int, np.integer)) or action_bins < 2):
+            raise ValueError("action_bins must be an integer >= 2")
+        if isinstance(water_weight, (bool, np.bool_)):
+            raise ValueError("water_weight must be finite and nonnegative")
+        try:
+            water_weight = float(water_weight)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("water_weight must be finite and nonnegative") from exc
+        if (not np.isfinite(water_weight) or water_weight < 0. or
+                water_weight > float(np.finfo(np.float32).max)):
+            raise ValueError("water_weight must be finite, nonnegative and representable as float32")
+        thresholds = np.asarray(thresholds, dtype=np.float64)
+        if (thresholds.shape != (5,) or not np.isfinite(thresholds).all() or
+                (thresholds < 0.).any()):
+            raise ValueError("Guaranteed-output thresholds must be finite nonnegative five-vectors")
+        ecological_thresholds = (np.zeros(5, dtype=np.float64) if ecological_thresholds is None else
+                                 np.asarray(ecological_thresholds, dtype=np.float64))
+        if (ecological_thresholds.shape != (5,) or not np.isfinite(ecological_thresholds).all() or
+                (ecological_thresholds < 0.).any()):
+            raise ValueError("Ecological thresholds must be finite nonnegative five-vectors")
+        vectors = {}
+        for name in ("storage_start", "inflow", "low", "high", "controls", "release"):
+            try:
+                value = np.asarray(transition[name], dtype=np.float64)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("Invalid action-cost transition field: " + name) from exc
+            if value.shape != (5,) or not np.isfinite(value).all():
+                raise ValueError("Action-cost transition fields must be finite five-vectors: " + name)
+            vectors[name] = value
+        storage, inflow = vectors["storage_start"], vectors["inflow"]
+        low, high, controls = vectors["low"], vectors["high"], vectors["controls"]
+        release = vectors["release"]
+        width = high-low
+        forced = width <= 1e-8
+        if ((inflow < 0.).any() or (low < -1e-8).any() or
+                (high > self.data.release_cap+1e-8).any() or (width < -1e-8).any() or
+                not np.isin(controls, (0., 1.)).all() or
+                not np.array_equal(controls == 0., forced) or
+                (release < 0.).any() or (release > self.data.release_cap+1e-8).any() or
+                (release < low-1e-8).any() or (release > high+1e-8).any()):
+            raise ValueError("Invalid action-cost release interval, control or actual release")
+        lower, upper = self._storage_bounds(transition.get("storage_lower_m3"),
+                                             transition.get("storage_upper_m3"))
+        start_level = self._forebay_levels(storage)
+        grid = np.arange(action_bins, dtype=np.float64)/(action_bins-1)
+        releases = low[:, None]+grid[None, :]**2*width[:, None]
+        releases[forced] = release[forced, None]
+        with np.errstate(over="ignore", invalid="ignore"):
+            end_storage = storage[:, None]+(inflow[:, None]-releases)*self.dt
+        tolerance = np.maximum(1., 1e-10*np.abs(storage))[:, None]
+        if (not np.isfinite(end_storage).all() or (releases < 0.).any() or
+                (end_storage < lower[:, None]-tolerance).any() or
+                (end_storage > upper[:, None]+tolerance).any()):
+            raise InfeasibleCascade("Action-cost candidates violate next-state storage bounds")
+        if self.head_model == "fixed":
+            heads = np.broadcast_to(self.data.head[:, None], releases.shape)
+        else:
+            end_levels = np.empty_like(end_storage)
+            for i, name in enumerate(IDS):
+                points = self.data.anchors[name]
+                end_levels[i] = np.interp(
+                    np.clip(end_storage[i], self.data.vmin[i], self.data.vmax[i]),
+                    points[:, 1], points[:, 0])
+            scenario = self.data.head_sensitivity
+            heads = (scenario["reference_net_head_m"][:, None]+
+                     scenario["head_slope_m_per_m"][:, None]*
+                     ((start_level[:, None]+end_levels)/2.-
+                      scenario["assumed_reference_forebay_level_m"][:, None]))
+        if not np.isfinite(heads).all() or (heads <= 0.).any():
+            raise ValueError("Calculated action-cost net heads must be finite and positive")
+        coefficient = self.rho_g_eta*heads/1e6
+        cap = np.minimum(self.data.turbine_cap[:, None], self.data.power_cap[:, None]/coefficient)
+        power = np.minimum(releases, cap)*coefficient
+        if not np.isfinite(power).all():
+            raise FloatingPointError("Non-finite action-cost power")
+        raw_shortfall = thresholds[:, None]-power
+        output_violation = ((thresholds[:, None] > 0.) &
+                            (raw_shortfall > 1e-10*np.maximum(thresholds[:, None], 1.)))
+        ecological_violation = ((ecological_thresholds[:, None] > 0.) &
+                                 (ecological_thresholds[:, None]-releases >
+                                  1e-10*np.maximum(ecological_thresholds[:, None], 1.)))
+        costs = (output_violation | ecological_violation).astype(np.float32)
+        if water_weight:
+            water = np.broadcast_to(grid[None, :]**2, costs.shape).copy()
+            water[forced | ((thresholds == 0.) & (ecological_thresholds == 0.))] = 0.
+            costs = (costs.astype(np.float64)+water_weight*water).astype(np.float32)
+        return costs
 
     def _storage_bounds(self, storage_lower, storage_upper):
         """Validate END-of-day bounds without changing the global curve domain."""

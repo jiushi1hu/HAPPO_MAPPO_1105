@@ -20,7 +20,7 @@ def _worker(connection):
             return
         if command != 'initialize':
             raise ValueError('A cascade worker must be initialized before reset')
-        data, physical, bins, days, gamma, trace, seed = payload
+        data, physical, bins, days, gamma, trace, seed, guarantee_auxiliary, water_weight = payload
         connection.send((True, dict(initialized=True)))
         while True:
             command, value = connection.recv()
@@ -38,6 +38,12 @@ def _worker(connection):
                         raise RuntimeError('Explicit reset is required before stepping an episode')
                     env.step(value)
                     transition = env.last_transition
+                    if guarantee_auxiliary:
+                        transition['guarantee_action_costs'] = env.physics.guaranteed_output_action_costs(
+                            transition, bins, env.operation_reward.thresholds['guaranteed_output'],
+                            water_weight=water_weight,
+                            ecological_thresholds=(env.operation_reward.thresholds['ecological_flow'] if
+                                env.operation_reward.settings['ecological_flow_weight'] > 0. else None))
                     metrics.update(transition)
                     energy += transition['energy']
                     done = env.index == env.stop
@@ -70,7 +76,13 @@ def _worker(connection):
 class ParallelCascadeEnvs:
     """Send all lane commands before waiting; each lane owns a separate process."""
 
-    def __init__(self, data, physical, bins, days, count, gamma, trace, seed):
+    def __init__(self, data, physical, bins, days, count, gamma, trace, seed,
+                 guarantee_auxiliary=False, guarantee_auxiliary_water_weight=0.):
+        if not isinstance(guarantee_auxiliary, bool):
+            raise ValueError('guarantee_auxiliary must be a boolean')
+        if (isinstance(guarantee_auxiliary_water_weight, (bool, np.bool_)) or
+                not np.isfinite(guarantee_auxiliary_water_weight) or guarantee_auxiliary_water_weight < 0.):
+            raise ValueError('guarantee_auxiliary_water_weight must be finite and nonnegative')
         self.connections, self.processes = [], []
         self.closed = False
         context = mp.get_context('spawn')
@@ -90,7 +102,8 @@ class ParallelCascadeEnvs:
                 ok, result = connection.recv()
                 if not ok or not result.get('ready'):
                     raise RuntimeError('Cascade worker did not report a valid startup message')
-            self._exchange('initialize', [(data, physical, bins, days, gamma, trace, seed)]*len(self.connections))
+            self._exchange('initialize', [(data, physical, bins, days, gamma, trace, seed,
+                                           guarantee_auxiliary, guarantee_auxiliary_water_weight)]*len(self.connections))
         except (EOFError, BrokenPipeError, OSError) as exc:
             self.close()
             raise RuntimeError('Cascade worker failed during startup') from exc

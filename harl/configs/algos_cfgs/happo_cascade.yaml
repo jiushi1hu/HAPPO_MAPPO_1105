@@ -24,7 +24,7 @@ model:
   action_distribution: categorical
   action_bins: 100
 algo:
-  gamma: 0.99  # GAE, gamma**t actor/entropy weights and episode accounting; 1 = undiscounted total.
+  gamma: 1.0  # Equal weight for all 1,825 scheduling days; also used by GAE and return accounting.
   gae_lambda: 0.95
   share_param: false
   fixed_order: false
@@ -46,6 +46,11 @@ algo:
   use_policy_active_masks: true
   action_aggregation: prod
   entropy_coef: 0.001
+  # Training-only soft imitation of a low-water, service-meeting command.
+  guarantee_auxiliary_coef: 1.0
+  guarantee_auxiliary_mode: feasible_imitation
+  # Break ties between service-meeting commands in favor of less discretionary release.
+  guarantee_auxiliary_water_weight: 0.1
   normalize_shared_advantages: true
   mask_inactive_factors: true
 experiment:

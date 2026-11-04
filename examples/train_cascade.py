@@ -8,7 +8,8 @@ sys.path.insert(0, str(ROOT))
 
 import yaml
 from harl.algorithms.actors.happo import (
-    validate_policy_optimization, validate_kl_rollback, validate_joint_target_kl)
+    validate_policy_optimization, validate_kl_rollback, validate_joint_target_kl,
+    validate_guarantee_auxiliary_coef, validate_guarantee_auxiliary_mode)
 from harl.algorithms.critics.v_critic import validate_value_normalization
 from harl.envs.cascade_reservoir.data_loader import (
     CascadeData, HEAD_MODELS, resolve_year_split, validate_service_scale)
@@ -45,6 +46,14 @@ def main():
     parser.add_argument('--action-bins',type=int,help='Discrete actions per reservoir (default: 100)')
     parser.add_argument('--gamma',type=float,help='Discount factor in [0,1]; 1 gives undiscounted episode return')
     parser.add_argument('--gae-lambda',type=float,help='GAE trace parameter in [0,1]')
+    parser.add_argument('--guarantee-auxiliary-coef',type=float,
+                        help='Soft training-only service auxiliary loss coefficient; 0 disables it')
+    parser.add_argument('--guarantee-auxiliary-mode',choices=('expected_cost', 'feasible_imitation'),
+                        help='Expected candidate cost or soft imitation of a low-water service-meeting command')
+    parser.add_argument('--guarantee-auxiliary-water-weight',type=float,
+                        help='Soft preference for lower discretionary release within the auxiliary cost')
+    parser.add_argument('--guaranteed-output-violation-weight',type=float,
+                        help='Soft local reward cost per guaranteed-output violation; 0 restores relative-deficit-only costs')
     parser.add_argument('--ppo-epochs',type=int,help='Maximum actor optimization epochs per collection round')
     kl = parser.add_mutually_exclusive_group()
     kl.add_argument('--target-kl',type=float,help='Exact actor KL early-stopping budget')
@@ -115,6 +124,12 @@ def main():
         model['action_bins'] = args.action_bins
     if args.ppo_epochs is not None:
         algo['ppo_epoch'] = args.ppo_epochs
+    if args.guarantee_auxiliary_coef is not None:
+        algo['guarantee_auxiliary_coef'] = args.guarantee_auxiliary_coef
+    if args.guarantee_auxiliary_mode is not None:
+        algo['guarantee_auxiliary_mode'] = args.guarantee_auxiliary_mode
+    if args.guarantee_auxiliary_water_weight is not None:
+        algo['guarantee_auxiliary_water_weight'] = args.guarantee_auxiliary_water_weight
     if args.target_kl is not None:
         algo['target_kl'] = args.target_kl
     elif args.no_kl_limit:
@@ -134,6 +149,8 @@ def main():
     if args.daily_level_limits is not None:
         physical['use_daily_level_limits'] = args.daily_level_limits
     physical['reward_penalties'] = dict(physical.get('reward_penalties',{}))
+    if args.guaranteed_output_violation_weight is not None:
+        physical['reward_penalties']['guaranteed_output_violation_weight'] = args.guaranteed_output_violation_weight
     if args.reward_penalties is not None:
         physical['reward_penalties']['enabled'] = args.reward_penalties
     try:
@@ -155,6 +172,15 @@ def main():
             raise ValueError('Categorical control requires at least two action bins')
         algo['gamma'] = validate_discount_factor(algo['gamma'] if args.gamma is None else args.gamma)
         algo['gae_lambda'] = validate_gae_lambda(algo['gae_lambda'] if args.gae_lambda is None else args.gae_lambda)
+        algo['guarantee_auxiliary_coef'] = validate_guarantee_auxiliary_coef(
+            algo.get('guarantee_auxiliary_coef', 0.))
+        algo['guarantee_auxiliary_water_weight'] = validate_guarantee_auxiliary_coef(
+            algo.get('guarantee_auxiliary_water_weight', 0.), name='guarantee_auxiliary_water_weight')
+        algo['guarantee_auxiliary_mode'] = validate_guarantee_auxiliary_mode(
+            algo.get('guarantee_auxiliary_mode', 'expected_cost'),
+            coefficient=(algo['guarantee_auxiliary_coef'] if
+                         physical['reward_penalties'].get('enabled', False) else 0.),
+            water_weight=algo['guarantee_auxiliary_water_weight'])
         algo['ppo_epoch'],algo['target_kl'] = validate_policy_optimization(algo['ppo_epoch'],algo.get('target_kl'))
         algo['kl_rollback'] = validate_kl_rollback(algo.get('kl_rollback',False),algo['target_kl'])
         algo['joint_target_kl'] = validate_joint_target_kl(algo.get('joint_target_kl'),algo['kl_rollback'])
