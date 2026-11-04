@@ -16,7 +16,7 @@ reward remains available for evaluation, daily CSVs and historical plots.
 - Fixed training-only scenarios are evaluated at **Round 0 and after each update**.
 - The final trained policy is evaluated after all training seeds finish.
 - Training uses a reproducible schedule that targets balanced year-day coverage, with distinct windows within each parallel batch.
-- Current service-threshold sensitivity: **40% guaranteed output and 40% ecological flow**, relative to the reference CSV.
+- Service-threshold multipliers are configured in the environment YAML or CLI and recorded in each run's metadata.
 - Learning gives all 1,825 days equal weight (`gamma=1`) and adds a soft cost for each guaranteed-output violation; physical requirements and violation counting are unchanged.
 
 The standard budget is 300 completed episodes per seed: 50 HAPPO updates and
@@ -158,8 +158,6 @@ reward settings. CLI arguments override their corresponding YAML values.
 | Actor / critic minibatches per epoch | 1 / 1 |
 | Gamma / GAE lambda | 1.0 / 0.95 |
 | Local guaranteed-output violation cost | 1.0 per actual violating reservoir-day, before 50/50 reward mixing |
-| Training-only service auxiliary loss | Coefficient 1.0; `feasible_imitation` mode |
-| Auxiliary discretionary-water tie-breaker | 0.1 times feasible-interval release fraction |
 | PPO clip / entropy coefficient | 0.2 / 0.001 |
 | Maximum gradient norm | 0.5 |
 | ValueNorm / per-actor advantage normalization | Enabled / enabled |
@@ -167,7 +165,7 @@ reward settings. CLI arguments override their corresponding YAML values.
 | Daily water-level limits | New action-date CSV, enabled |
 | Periodic evaluation interval / scenarios | Every update / 3 fixed training-only windows |
 | Training-window sampling | `coverage_balanced`; `uniform` restores the previous sampler |
-| Guaranteed-output / ecological-flow threshold scale | 0.40 / 0.40 of reference CSV values |
+| Guaranteed-output / ecological-flow threshold scale | Environment YAML values; CLI overrides are available |
 
 Both the default configuration and launch command select gamma=1 so later-year
 service failures are not downweighted relative to the first year. The local
@@ -182,40 +180,18 @@ rates, energy and final storage across configurations; returns with different
 gamma values cannot be compared directly. A separate lambda experiment can use
 `--gae-lambda 1`; it is not the default.
 
-The additional `guarantee_auxiliary_coef` soft loss uses all categorical commands,
-not only the sampled one. During collection the unchanged physical model computes
-each candidate's output with its own end-storage-dependent head, conditional on
-the other originally sampled commands. Its cost is a binary output-or-ecology
-violation indicator plus `guarantee_auxiliary_water_weight * u^2`, using the
-original thresholds and tolerances. Ecology participates when its penalty is
-enabled; inactive requirements contribute nothing. The water term ranks equally
-service-meeting commands by discretionary release within the feasible interval,
-not by an absolute monetary or cubic-meter cost.
+Actors optimize the sequential HAPPO clipped policy surrogate with entropy
+regularization, using their own mixed-return advantages from actual trajectories.
+The model-assisted command imitation objective and its candidate-cost data flow
+have been removed. Service requirements influence learning through the reward;
+there is no preferred-command target or additional physics-derived actor loss.
 
-In the default `feasible_imitation` mode, the target is the lowest-cost command
-meeting the enabled services. Its negative log probability is added to PPO with
-the configured coefficient, episode-start weight, control mask and preceding-agent
-likelihood factor. Rows with no service-meeting command or constant costs supply
-no imitation gradient. A positive imitation coefficient requires water weight
-below 1 so a meeting command always ranks ahead of a violating command; positive
-weights below 1 only break ties between safe commands in this mode. The target
-is training guidance: the actor still samples its own command; no service-specific
-action replacement is applied.
-
-The optional `expected_cost` mode instead minimizes the probability-weighted
-candidate costs. Both are additional model-assisted immediate objectives, not
-replacements for long-term PPO advantages or the original HAPPO guarantee.
-The critic and PPO still account for generation and future water value; all
-service constraints remain soft. Evaluation does not calculate these tables,
-mask choices or override actions. The auxiliary loss is logged separately and
-is not added to the legacy team return shown in the existing plots.
-
-Use `--guarantee-auxiliary-coef 0` to disable that auxiliary loss and
-`--guaranteed-output-violation-weight 0` to disable the added reward frequency cost.
-With both zero and `--gamma 0.99`, the previous learning objectives are recovered.
-These effective settings and the training-only interpretation are recorded in
-run metadata. Do not count the frequency-cost detail twice: it is already part
-of the local guarantee penalty component.
+Use `--guaranteed-output-violation-weight 0` to disable the added reward frequency
+cost. Combining that option with `--gamma 0.99` recovers the previous discount
+and local reward formula. Effective settings are recorded in run metadata.
+Do not count the frequency-cost detail twice: it is already part of the local
+guarantee penalty component. Older runs with command imitation enabled retain
+their original methodology and do not establish performance for this version.
 
 With daily limits enabled, each actor observes 15 local/neighbor values and
 the critic receives 38 centralized state values:
@@ -376,9 +352,9 @@ PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_
 ## Service-threshold sensitivity
 
 `--guaranteed-output-scale` and `--ecological-flow-scale` apply positive
-multipliers to the reference thresholds. The current environment configuration
-sets guaranteed output and ecological flow both to **0.40** of reference,
-reductions of 60% from the original requirements. Multipliers always
+multipliers to the reference thresholds. Their defaults come from the environment
+YAML. A value of **1.0** uses the full reference requirement; **0.40** uses 40%
+of that requirement. Multipliers always
 apply directly to the original CSV, so reductions do not compound. The reference
 CSV remains unchanged; effective and
 base values, multipliers and the input file hash are recorded in the run configuration
@@ -389,7 +365,7 @@ The two CLI values are multipliers, not absolute MW or m3/s values. For example,
 `--guaranteed-output-scale 0.4 --ecological-flow-scale 0.4` gives XLD thresholds
 of `5345.7 * 0.4 = 2138.28 MW` and `1160 * 0.4 = 464 m3/s`.
 
-The current 40% / 40% file-based defaults are these keys in
+For a 40% / 40% sensitivity experiment, set these keys in
 `harl/configs/envs_cfgs/cascade_reservoir.yaml`:
 
 ```yaml

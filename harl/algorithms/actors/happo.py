@@ -49,31 +49,6 @@ def validate_joint_target_kl(target_kl, kl_rollback):
     return target_kl
 
 
-def validate_guarantee_auxiliary_coef(value, name='guarantee_auxiliary_coef'):
-    message = name+' must be finite and nonnegative'
-    if isinstance(value, (bool, np.bool_)):
-        raise ValueError(message)
-    try:
-        value = float(value)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise ValueError(message) from exc
-    if not np.isfinite(value) or value < 0.:
-        raise ValueError(message)
-    return value
-
-
-def validate_guarantee_auxiliary_mode(value, coefficient=0., water_weight=0.):
-    if not isinstance(value, str) or value not in ('expected_cost', 'feasible_imitation'):
-        raise ValueError('guarantee_auxiliary_mode must be expected_cost or feasible_imitation')
-    coefficient = validate_guarantee_auxiliary_coef(coefficient)
-    water_weight = validate_guarantee_auxiliary_coef(water_weight, name='guarantee_auxiliary_water_weight')
-    if (value == 'feasible_imitation' and coefficient > 0. and
-            (water_weight >= 1. or np.float32(water_weight) >= 1.)):
-        raise ValueError('Positive feasible_imitation requires guarantee_auxiliary_water_weight < 1 '
-                         'in the cost-table dtype')
-    return value
-
-
 class HAPPO(OnPolicyBase):
     def __init__(self, args, obs_space, act_space, device=torch.device("cpu")):
         """Initialize HAPPO algorithm.
@@ -98,37 +73,6 @@ class HAPPO(OnPolicyBase):
         self.entropy_coef = args["entropy_coef"]
         self.use_max_grad_norm = args["use_max_grad_norm"]
         self.max_grad_norm = args["max_grad_norm"]
-        self.guarantee_auxiliary_coef = validate_guarantee_auxiliary_coef(
-            args.get('guarantee_auxiliary_coef', 0.))
-        self.guarantee_auxiliary_mode = validate_guarantee_auxiliary_mode(
-            args.get('guarantee_auxiliary_mode', 'expected_cost'), self.guarantee_auxiliary_coef,
-            args.get('guarantee_auxiliary_water_weight', 0.))
-
-    def _guarantee_auxiliary_cost(self, distribution, costs, weights, factor):
-        """Expected cost or feasible-command imitation on frozen rollout forcing.
-
-        Other actors' sampled commands determine the physical cost table. F
-        reweights preceding actors; no sampled own-action ratio belongs here.
-        This is an additional immediate soft objective, not a PPO estimator.
-        """
-        if costs is None:
-            raise ValueError('Positive guarantee_auxiliary_coef requires guarantee_action_costs')
-        costs = check(costs).to(**self.tpdv).detach()
-        if (costs.shape != distribution.probs.shape or not torch.isfinite(costs).all()
-                or (costs < 0.).any()):
-            raise ValueError('Guarantee action costs must be finite nonnegative values matching categorical probabilities')
-        if self.guarantee_auxiliary_mode == 'feasible_imitation':
-            minimum, target = costs.min(dim=-1, keepdim=True)
-            valid = (minimum < 1.) & (costs.max(dim=-1, keepdim=True).values > minimum)
-            # With water_weight < 1, costs below 1 identify meeting commands.
-            # Constant and unreachable rows have no teacher contribution.
-            negative_log_probability = -distribution.logits.gather(-1, target)
-            return (weights*factor.detach()*valid*negative_log_probability).mean()
-        # Centering gives exactly zero gradient for any constant-cost table,
-        # rather than relying on a floating-point sum(probs) being constant.
-        baseline = costs[:, :1]
-        expected = (distribution.probs*(costs-baseline)).sum(dim=-1, keepdim=True)+baseline
-        return (weights*factor.detach()*expected).mean()
 
     @torch.no_grad()
     def rollout_distribution(self, actor_buffer):
@@ -167,8 +111,8 @@ class HAPPO(OnPolicyBase):
 
         Advantages are the exact post-normalization inputs used by train().
         Rollout likelihoods, time weights and the sequential HAPPO factor stay
-        fixed for the before/after comparison. Surrogates and the regularized
-        objective are maximized; the auxiliary cost is minimized.
+        fixed for the before/after comparison. All objectives are maximized;
+        the clipped surrogate is the negative of the policy loss.
         """
         active = actor_buffer.active_masks[:-1].reshape(-1, 1)
         weights = np.asarray(objective_weights).reshape(-1, 1)
@@ -176,12 +120,10 @@ class HAPPO(OnPolicyBase):
             weights = weights * active
         names = ('clipped_surrogate', 'unclipped_surrogate',
                  'weighted_entropy', 'regularized_objective')
-        if self.guarantee_auxiliary_coef:
-            names += ('guarantee_auxiliary_cost',)
         if not np.any(weights > 0.):
             return dict.fromkeys(names, 0.)
         available = actor_buffer.available_actions
-        logp, entropy, distribution = self.evaluate_actions(
+        logp, entropy, _ = self.evaluate_actions(
             actor_buffer.obs[:-1].reshape(-1, *actor_buffer.obs.shape[2:]),
             actor_buffer.actions.reshape(-1, actor_buffer.actions.shape[-1]),
             None if available is None else available[:-1].reshape(-1, available.shape[-1]),
@@ -198,16 +140,8 @@ class HAPPO(OnPolicyBase):
             ratio.clamp(1.-self.clip_param, 1.+self.clip_param)*advantage)
         clipped_value = (weight*factor*clipped).mean()
         entropy_value = (weight*entropy.reshape(-1, 1)).mean()
-        values = [clipped_value, (weight*factor*surrogate).mean(), entropy_value,
-                  clipped_value+self.entropy_coef*entropy_value]
-        if self.guarantee_auxiliary_coef:
-            costs = getattr(actor_buffer, 'guarantee_action_costs', None)
-            if costs is not None:
-                costs = costs.reshape(-1, distribution.probs.shape[-1])
-            auxiliary_weights = check(np.asarray(objective_weights).reshape(-1, 1)*active).to(**self.tpdv)
-            auxiliary_cost = self._guarantee_auxiliary_cost(distribution, costs, auxiliary_weights, factor)
-            values[3] -= self.guarantee_auxiliary_coef*auxiliary_cost
-            values.append(auxiliary_cost)
+        values = (clipped_value, (weight*factor*surrogate).mean(), entropy_value,
+                  clipped_value+self.entropy_coef*entropy_value)
         if not all(torch.isfinite(value) for value in values):
             raise FloatingPointError('Non-finite full-rollout surrogate diagnostic')
         return {name: float(value) for name, value in zip(names, values)}
@@ -253,12 +187,7 @@ class HAPPO(OnPolicyBase):
             dist_entropy: (torch.Tensor) action entropies.
             actor_grad_norm: (torch.Tensor) gradient norm from actor update.
             imp_weights: (torch.Tensor) importance sampling weights.
-            auxiliary_cost: appended only when the auxiliary coefficient is
-                positive (expected cost or target NLL, depending on mode);
-                policy_loss above remains the PPO-only component.
         """
-        if len(sample) not in (9, 10):
-            raise ValueError('Expected nine actor sample fields and an optional guarantee-cost table')
         (
             obs_batch,
             actions_batch,
@@ -269,8 +198,7 @@ class HAPPO(OnPolicyBase):
             available_actions_batch,
             factor_batch,
             objective_weights_batch,
-        ) = sample[:9]
-        guarantee_costs_batch = sample[9] if len(sample) == 10 else None
+        ) = sample
 
         old_action_log_probs_batch = check(old_action_log_probs_batch).to(**self.tpdv)
         adv_targ = check(adv_targ).to(**self.tpdv)
@@ -289,11 +217,10 @@ class HAPPO(OnPolicyBase):
         # have no objective contribution. Adam momentum must not move them.
         if not (sample_weights > 0).any():
             zero = torch.zeros((), **self.tpdv)
-            result = (zero, zero, zero, torch.ones_like(adv_targ))
-            return result+(zero,) if self.guarantee_auxiliary_coef else result
+            return zero, zero, zero, torch.ones_like(adv_targ)
 
         # Reshape to do evaluations for all steps in a single forward pass
-        action_log_probs, entropy_per_sample, distribution = self.evaluate_actions(
+        action_log_probs, entropy_per_sample, _ = self.evaluate_actions(
             obs_batch,
             actions_batch,
             available_actions_batch,
@@ -324,12 +251,7 @@ class HAPPO(OnPolicyBase):
 
         self.actor_optimizer.zero_grad()
 
-        objective = policy_loss-dist_entropy*self.entropy_coef
-        if self.guarantee_auxiliary_coef:
-            auxiliary_cost = self._guarantee_auxiliary_cost(distribution, guarantee_costs_batch,
-                objective_weights_batch*active_masks_batch, factor_batch)
-            objective = objective+self.guarantee_auxiliary_coef*auxiliary_cost
-        objective.backward()
+        (policy_loss - dist_entropy * self.entropy_coef).backward()  # add entropy term
 
         if self.use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(
@@ -340,8 +262,7 @@ class HAPPO(OnPolicyBase):
 
         self.actor_optimizer.step()
 
-        result = (policy_loss, dist_entropy, actor_grad_norm, imp_weights)
-        return result+(auxiliary_cost,) if self.guarantee_auxiliary_coef else result
+        return policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
     def train(self, actor_buffer, advantages, state_type, diagnostics=False, joint_kl_guard=None):
         """Perform a training update using minibatch GD.
@@ -359,8 +280,6 @@ class HAPPO(OnPolicyBase):
                 rows from retained minibatches, measured before each step.
                 ratio_samples counts those rows across epochs; a zero count
                 means ratio is undefined and reported as zero by convention.
-                Optional guarantee_auxiliary_cost is the weighted expected
-                cost or target NLL averaged over retained minibatch updates.
         """
         if state_type != "EP":
             raise ValueError("Cascade HAPPO requires a centralized EP critic state")
@@ -375,8 +294,6 @@ class HAPPO(OnPolicyBase):
         train_info["dist_entropy"] = 0
         train_info["actor_grad_norm"] = 0
         train_info["ratio"] = 0
-        if self.guarantee_auxiliary_coef:
-            train_info['guarantee_auxiliary_cost'] = 0.
         budget_info = dict(optimizer_steps=0., optimizer_attempts=0., optimizer_rejected_steps=0.,
                            ratio_samples=0.,
                            ppo_epochs_completed=0., ppo_epochs_attempted=0., kl_early_stopped=0.)
@@ -398,8 +315,6 @@ class HAPPO(OnPolicyBase):
             if diagnostics:
                 zero = dict.fromkeys(('clipped_surrogate', 'unclipped_surrogate',
                                       'weighted_entropy', 'regularized_objective'), 0.)
-                if self.guarantee_auxiliary_coef:
-                    zero['guarantee_auxiliary_cost'] = 0.
                 train_info.update(self.surrogate_changes(zero, zero))
             return dict(train_info, **budget_info)
 
@@ -433,7 +348,7 @@ class HAPPO(OnPolicyBase):
             )
 
             for sample in data_generator:
-                effective = sample[8] * (sample[3] if self.use_policy_active_masks else 1.)
+                effective = sample[-1] * (sample[3] if self.use_policy_active_masks else 1.)
                 has_objective = bool(np.any(effective > 0.))
                 snapshot = self._snapshot_actor_update() if self.kl_rollback and has_objective else None
                 budget_info['optimizer_attempts'] += float(has_objective)
@@ -473,13 +388,11 @@ class HAPPO(OnPolicyBase):
                         budget_info.update(joint_policy_kl=joint_kl_guard.retained_kl,
                             joint_actor_kl=joint_kl_guard.contribution,
                             joint_kl_remaining=max(0., self.joint_target_kl-joint_kl_guard.retained_kl))
-                policy_loss, dist_entropy, actor_grad_norm, imp_weights = result[:4]
+                policy_loss, dist_entropy, actor_grad_norm, imp_weights = result
 
                 train_info["policy_loss"] += policy_loss.item()
                 train_info["dist_entropy"] += dist_entropy.item()
                 train_info["actor_grad_norm"] += actor_grad_norm
-                if self.guarantee_auxiliary_coef:
-                    train_info['guarantee_auxiliary_cost'] += result[4].item()
                 # Forced placeholders have old log-probability zero, so their
                 # apparent ratios are not importance ratios. Only report rows
                 # that actually contribute to this retained objective. Count

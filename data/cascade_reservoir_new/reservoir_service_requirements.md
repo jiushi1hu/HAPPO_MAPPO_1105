@@ -56,13 +56,13 @@ and to 0 when omitted from a configuration. It leaves the legacy metric,
 thresholds, physical transitions and compliance counts unchanged. No service
 action override or hard output floor is introduced.
 
-The current algorithm additionally uses a training-only soft imitation loss.
-Candidate commands are labeled with the original power and enabled ecological
-requirements under the same head/storage model. A small discretionary-release
-tie-breaker selects a low-water service-meeting target. The actor is encouraged,
-but never forced, to select it; rows with no service-meeting candidate and
-constant-cost rows provide no imitation loss. This auxiliary objective is separate from environment reward
-accounting and does not change any physical compliance metric.
+Actors optimize the sequential clipped HAPPO policy objective with entropy
+regularization and mixed-return advantages from actual trajectories. Service
+requirements enter through the reward penalties above. The model-assisted
+command imitation loss and candidate-cost tables have been removed; the
+physical model supplies executed transitions rather than preferred-command
+training targets. Existing logs from the earlier imitation-enabled version
+retain their original definitions and results.
 
 For the current five positive requirements, generation is in [0,1], each mean  
 relative shortfall is in [0,1], and the unit-weight daily reward is in [-2,1].  

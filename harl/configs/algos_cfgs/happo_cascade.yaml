@@ -46,11 +46,6 @@ algo:
   use_policy_active_masks: true
   action_aggregation: prod
   entropy_coef: 0.001
-  # Training-only soft imitation of a low-water, service-meeting command.
-  guarantee_auxiliary_coef: 1.0
-  guarantee_auxiliary_mode: feasible_imitation
-  # Break ties between service-meeting commands in favor of less discretionary release.
-  guarantee_auxiliary_water_weight: 0.1
   normalize_shared_advantages: true
   mask_inactive_factors: true
 experiment:

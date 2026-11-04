@@ -6,8 +6,7 @@ import time
 import numpy as np
 import torch
 
-from harl.algorithms.actors.happo import (
-    HAPPO, validate_guarantee_auxiliary_coef, validate_guarantee_auxiliary_mode)
+from harl.algorithms.actors.happo import HAPPO
 from harl.algorithms.critics.v_critic import VCritic, validate_value_normalization
 from harl.common.buffers.on_policy_actor_buffer import OnPolicyActorBuffer
 from harl.common.buffers.on_policy_critic_buffer_ep import OnPolicyCriticBufferEP
@@ -102,19 +101,6 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
         torch.use_deterministic_algorithms(True)
         self.reward_settings = reward_settings(physical_config)
-        auxiliary_coef = validate_guarantee_auxiliary_coef(
-            args['algo'].get('guarantee_auxiliary_coef', 0.))
-        args['algo']['guarantee_auxiliary_water_weight'] = validate_guarantee_auxiliary_coef(
-            args['algo'].get('guarantee_auxiliary_water_weight', 0.),
-            name='guarantee_auxiliary_water_weight')
-        # Disabling service penalties also disables the training-only service loss.
-        args['algo']['guarantee_auxiliary_coef'] = (
-            auxiliary_coef if self.reward_settings['enabled'] else 0.)
-        args['algo']['guarantee_auxiliary_mode'] = validate_guarantee_auxiliary_mode(
-            args['algo'].get('guarantee_auxiliary_mode', 'expected_cost'),
-            coefficient=args['algo']['guarantee_auxiliary_coef'],
-            water_weight=args['algo']['guarantee_auxiliary_water_weight'])
-        self.guarantee_auxiliary_enabled = args['algo']['guarantee_auxiliary_coef'] > 0.
         # One centralized critic: five individual mixed returns and one legacy
         # team-return output reserved for the existing accounting diagnostics.
         self.critic_output_dim = self.num_agents + 1
@@ -202,9 +188,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         if self.parallel_envs is None:
             self.parallel_envs = ParallelCascadeEnvs(self.data, self.physical_config,
                 self.action_bins, self.length, self.n_envs, self.algo_args['algo']['gamma'],
-                self.algo_args['algo']['gae_lambda'], self.seed,
-                guarantee_auxiliary=self.guarantee_auxiliary_enabled,
-                guarantee_auxiliary_water_weight=self.algo_args['algo']['guarantee_auxiliary_water_weight'])
+                self.algo_args['algo']['gae_lambda'], self.seed)
         ids = list(range(self.episode_attempts+1, self.episode_attempts+self.n_envs+1))
         if self.trajectory_log is not None:
             self.trajectory_log.begin_batch(seed=self.seed, update=self.update_count+1,
@@ -241,14 +225,11 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                 state = np.stack([r['state'] for r in results])
                 controls = np.stack([r['controls'] for r in transitions])
                 effective_actions = np.stack([r['actions'] for r in transitions])
-                guarantee_costs = (np.stack([r['guarantee_action_costs'] for r in transitions])
-                                   if self.guarantee_auxiliary_enabled else None)
                 next_masks = (~done).astype(np.float32)[:, None]
                 for i, b in enumerate(self.actor_buffer):
                     lp = np.where(controls[:, i:i+1] > 0, log_probs[i], 0.)
                     b.insert(obs[:, i], effective_actions[:, i:i+1], lp, next_masks,
-                             np.ones((self.n_envs, 1), dtype=np.float32),
-                             guarantee_action_costs=(None if guarantee_costs is None else guarantee_costs[:, i]))
+                             np.ones((self.n_envs, 1), dtype=np.float32))
                     b.active_masks[t] = controls[:, i:i+1]
                 cb.insert(state, _t2n(values),
                     np.asarray([np.r_[r['mixed_rewards'], r['reward']] for r in transitions], dtype=np.float32),
@@ -377,8 +358,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                         actor_row['optimization'] = {key:float(info[key]) for key in optimization_keys if key in info}
                         actor_row['surrogate'] = {key:float(value) for key,value in info.items()
                             if key.startswith(('clipped_surrogate_','unclipped_surrogate_',
-                                               'weighted_entropy_','regularized_objective_',
-                                               'guarantee_auxiliary_cost_'))}
+                                               'weighted_entropy_','regularized_objective_'))}
                     self.diagnostics_history.append(report)
                     log_episode(dict(report,record_type='training_diagnostics',seed=self.seed),self.episode_log)
                     if k % log_interval == 0 or k == updates:
