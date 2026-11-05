@@ -1,0 +1,211 @@
+"""Comparison plots keep algorithm identity, task provenance and failure gaps."""
+import copy
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import numpy as np
+
+try:
+    import matplotlib
+    matplotlib.use('Agg', force=True)
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from examples import plot_cascade_compare as compare
+
+
+def descriptors():
+    return [dict(window_id=name, window_start_year=year, source_years=[year],
+                 episode_horizon_days=2, start_date=str(year)+'-01-01',
+                 end_date=str(year)+'-01-02', initial_storage_m3=[1.]*5,
+                 initial_level_m=[1.]*5, external_inflow_sha256='0'*64)
+            for name, year in (('dry', 2000), ('median', 2001), ('wet', 2002))]
+
+
+def context():
+    return dict(shared_settings=dict(episode_horizon_days=2, parallel_environments=1,
+        episodes_per_seed=2, gamma=1., action_bins=4, seeds=[1, 2],
+        training_years=[2000, 2001, 2002], evaluation_source_years=[2003],
+        window_sampling='coverage_balanced', physical_config={'head_model': 'fixed'},
+        periodic_windows=descriptors(), evaluation_interval=1, device={'torch_threads': 1},
+        train={'episode_length': 2, 'n_rollout_threads': 1},
+        model={'action_bins': 4}, algo={'gamma': 1.}),
+        data_hashes={'inflow.csv': 'a'*64})
+
+
+def evaluation(seed, number, value, count=1, failed=False):
+    windows = []
+    for descriptor in descriptors():
+        row = dict(descriptor, status='failed' if failed else 'ok',
+                   evaluator_return=None if failed else value)
+        for term in ('guaranteed_output', 'ecological_flow'):
+            row.update({term+'_violation_count': None if failed else count,
+                        term+'_active_reservoir_days': None if failed else 10,
+                        term+'_violation_rate': None if failed else count/10.})
+        windows.append(row)
+    row = dict(seed=seed, evaluation_round=number, gamma=1.,
+               status='failed' if failed else 'ok', window_count=3,
+               successful_window_count=0 if failed else 3,
+               evaluator_return=None if failed else value, windows=windows)
+    for term in ('guaranteed_output', 'ecological_flow'):
+        row.update({term+'_violation_count': None if failed else 3*count,
+                    term+'_active_reservoir_days': None if failed else 30,
+                    term+'_violation_rate': None if failed else count/10.})
+    return row
+
+
+def run(offset=0):
+    return dict(gamma=1., seeds=[1, 2], configured_seeds=[1, 2],
+                episode_horizon_days=2, parallel_envs=1, updates_per_seed=2,
+                comparison_context=context(),
+                histories=[[dict(training_steps=2*i, episode_reward=offset+seed+2*i,
+                                 episode_energy_TWh=offset+10*seed+i)
+                            for i in (1, 2)] for seed in (1, 2)],
+                evaluation_histories=[[evaluation(seed, i, offset+seed+i, count=seed)
+                                       for i in (0, 1, 2)] for seed in (1, 2)])
+
+
+def payload():
+    return dict(schema=compare.SCHEMA, runs=[dict(algorithm='happo', payload=run()),
+                                            dict(algorithm='mappo', payload=run(100))])
+
+
+@unittest.skipIf(plt is None, 'Matplotlib is available in the plotting interpreter')
+class ComparisonFigureTest(unittest.TestCase):
+    def tearDown(self):
+        plt.close('all')
+
+    def test_joint_figures_keep_seeds_within_algorithm(self):
+        figures = compare.make_figures(payload())
+        self.assertEqual(set(figures), {'training', 'evaluator', 'violations'})
+        self.assertEqual([len(f.axes) for f in figures.values()], [2, 1, 2])
+        for figure in figures.values():
+            for ax in figure.axes:
+                self.assertEqual(len(ax.lines), 2)
+                self.assertNotEqual(ax.lines[0].get_color(), ax.lines[1].get_color())
+        lines = figures['training'].axes[0].lines
+        np.testing.assert_allclose(lines[0].get_ydata(), [3.5, 5.5])
+        np.testing.assert_allclose(lines[1].get_ydata(), [103.5, 105.5])
+        vertices = figures['training'].axes[0].collections[0].get_paths()[0].vertices
+        band = vertices[np.isclose(vertices[:, 0], 2.), 1]
+        self.assertAlmostEqual(band.min(), 3.5-np.sqrt(.5))
+        self.assertAlmostEqual(band.max(), 3.5+np.sqrt(.5))
+        np.testing.assert_allclose(figures['evaluator'].axes[0].lines[0].get_ydata(), [1.5, 2.5, 3.5])
+        np.testing.assert_allclose(figures['violations'].axes[0].lines[0].get_ydata(), [15., 15., 15.])
+
+    def test_failed_and_missing_seed_leave_algorithm_gaps(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                data = payload()
+                rows = data['runs'][0]['payload']['evaluation_histories'][1]
+                if missing:
+                    del rows[1]
+                else:
+                    rows[1] = evaluation(2, 1, 3., failed=True)
+                figures = compare.make_figures(data)
+                self.assertTrue(np.isnan(figures['evaluator'].axes[0].lines[0].get_ydata()[1]))
+                self.assertTrue(np.isfinite(figures['evaluator'].axes[0].lines[1].get_ydata()[1]))
+                self.assertTrue(np.isnan(figures['violations'].axes[1].lines[0].get_ydata()[1]))
+
+    def test_mismatch_is_rejected_before_drawing(self):
+        for change in ('hash', 'physical', 'gamma', 'scenarios'):
+            with self.subTest(change=change):
+                data = payload()
+                other = data['runs'][1]['payload']['comparison_context']
+                if change == 'hash':
+                    other['data_hashes']['inflow.csv'] = 'b'*64
+                elif change == 'physical':
+                    other['shared_settings']['physical_config']['head_model'] = 'storage_sensitivity'
+                elif change == 'gamma':
+                    other['shared_settings']['gamma'] = .99
+                else:
+                    other['shared_settings']['periodic_windows'][0]['initial_storage_m3'][0] = 2.
+                with patch.object(plt, 'subplots', side_effect=AssertionError('Unexpected drawing')):
+                    with self.assertRaises(ValueError):
+                        compare.make_figures(data)
+
+    def test_single_algorithm_before_first_training_batch(self):
+        data = payload()
+        data['runs'] = data['runs'][:1]
+        data['runs'][0]['payload']['histories'] = [[], []]
+        figures = compare.make_figures(data)
+        self.assertEqual(len(figures['training'].axes[0].lines), 0)
+        self.assertEqual(len(figures['evaluator'].axes[0].lines), 1)
+
+
+def write_log(path, algorithm, inline_context, labeled=True):
+    p = run(0 if algorithm == 'happo' else 100)
+    shared = p['comparison_context']['shared_settings']
+    metadata = dict(record_type='run_configuration', algorithm=algorithm,
+        episode_horizon_days=2, parallel_environments=1, episodes_per_seed=2,
+        updates_per_seed=2, training_years=shared['training_years'],
+        evaluation_source_years=shared['evaluation_source_years'],
+        physical_config=shared['physical_config'], data_hashes={'inflow.csv': 'a'*64},
+        periodic_evaluation={'windows': descriptors()},
+        config=dict({key: copy.deepcopy(shared[key]) for key in ('device', 'train', 'model', 'algo')},
+                    experiment={'seeds': [1, 2], 'window_sampling': 'coverage_balanced'}))
+    if inline_context:
+        metadata['comparison_context'] = context()
+    if not labeled:
+        del metadata['algorithm']
+    rows = [metadata]
+    for seed, history, evaluations in zip(p['seeds'], p['histories'], p['evaluation_histories']):
+        for i, row in enumerate(history, 1):
+            rows.append(dict(record_type='training_update', seed=seed, update=i,
+                training_steps=row['training_steps'], episode_horizon_days=2, parallel_envs=1,
+                episode_reward_mean=row['episode_reward'],
+                episode_generation_TWh_mean=row['episode_energy_TWh']))
+        rows.extend(dict(row, record_type='periodic_evaluation') for row in evaluations)
+    path.write_text(''.join(json.dumps(row)+'\n' for row in rows), encoding='utf-8')
+
+
+class ComparisonIdentityTest(unittest.TestCase):
+    def test_unlabeled_legacy_log_cannot_be_claimed_as_mappo(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'legacy.jsonl'
+            write_log(path, 'happo', inline_context=False, labeled=False)
+            result = compare.load_comparison(happo_log=path)
+            self.assertEqual(result['runs'][0]['algorithm'], 'happo')
+            with self.assertRaisesRegex(ValueError, 'explicit algorithm metadata'):
+                compare.load_comparison(mappo_log=path)
+
+    def test_duplicate_algorithm_and_missing_identity_rejected(self):
+        data = payload()
+        data['runs'][1]['algorithm'] = 'HAPPO'
+        with self.assertRaisesRegex(ValueError, 'unique'):
+            compare.validate_comparison(data)
+        data = payload()
+        del data['runs'][0]['payload']['comparison_context']
+        with self.assertRaisesRegex(ValueError, 'comparison_context'):
+            compare.validate_comparison(data)
+        data = payload()
+        data['runs'][0]['payload']['algorithm'] = 'mappo'
+        with self.assertRaisesRegex(ValueError, 'Algorithm label'):
+            compare.validate_comparison(data)
+
+    def test_separate_jsonl_loading_and_metadata_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            h, m = Path(directory)/'happo.jsonl', Path(directory)/'mappo.jsonl'
+            write_log(h, 'happo', inline_context=True)
+            write_log(m, 'mappo', inline_context=False)
+            result = compare.load_comparison(h, m)
+            self.assertEqual([r['algorithm'] for r in result['runs']], ['happo', 'mappo'])
+            for run_entry in result['runs']:
+                self.assertEqual(run_entry['payload']['seeds'], [1, 2])
+            self.assertEqual(result['runs'][0]['payload']['histories'][0][0]['episode_reward'], 3)
+            self.assertEqual(result['runs'][1]['payload']['histories'][0][0]['episode_reward'], 103)
+            with self.assertRaisesRegex(ValueError, 'same log'):
+                compare.load_comparison(h, h)
+
+
+if __name__ == '__main__':
+    unittest.main()

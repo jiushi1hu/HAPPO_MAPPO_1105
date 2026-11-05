@@ -135,6 +135,10 @@ def save_checkpoint(runner, path):
             value_normalizer=None if normalizer_state is None else _state_hash(normalizer_state)),
         purpose='deterministic evaluation replay; training resume is not implemented',
         torch_version=str(torch.__version__), numpy_version=str(np.__version__)))
+    # Older HAPPO checkpoints keep their existing metadata schema. MAPPO uses
+    # the same inference network but records its distinct training provenance.
+    if getattr(runner, 'algorithm_name', 'happo') == 'mappo':
+        metadata['algorithm_name'] = 'mappo'
     payload = dict(format=CHECKPOINT_FORMAT, version=CHECKPOINT_VERSION,
         metadata=metadata, metadata_sha256=_digest(metadata), actors=actor_states,
         critic=critic_state, value_normalizer=normalizer_state)

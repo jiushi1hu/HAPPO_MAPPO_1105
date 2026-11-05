@@ -28,7 +28,8 @@ def load_configuration():
     return read('algos_cfgs/happo_cascade.yaml'), read('envs_cfgs/cascade_reservoir.yaml')
 
 
-def main():
+def main(argv=None, *, experiment_runner=run_parallel_experiment,
+         parser_extension=None, output_preflight=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir',type=Path,default=ROOT/'data/cascade_reservoir_new')
     parser.add_argument('--episodes',type=int,help='Completed multi-year episodes per seed (default: 300)')
@@ -89,7 +90,9 @@ def main():
                         help='New summary JSONL path; also creates compact <stem>_seedN_steps.csv files')
     parser.add_argument('--plot-python',default=sys.executable,help='Python interpreter with interactive Matplotlib')
     parser.add_argument('--no-plot',action='store_true',help='Run without opening plot windows')
-    args = parser.parse_args()
+    if parser_extension is not None:
+        parser_extension(parser)
+    args = parser.parse_args(argv)
     if args.xld_diagnostics and args.episode_log is None:
         parser.error('--xld-diagnostics requires --episode-log')
     if (args.trajectory_diagnostics or args.save_checkpoints) and args.episode_log is None:
@@ -98,7 +101,7 @@ def main():
         parser.error('--checkpoint-interval must be nonnegative')
     if args.checkpoint_interval and not args.save_checkpoints:
         parser.error('--checkpoint-interval requires --save-checkpoints')
-    if args.episode_log is not None and args.episode_log.exists():
+    if output_preflight is None and args.episode_log is not None and args.episode_log.exists():
         parser.error('episode-log must name a new file')
     config, physical = load_configuration()
     exp, train, model, algo = (config[key] for key in ('experiment','train','model','algo'))
@@ -177,29 +180,35 @@ def main():
         exp.update({name:list(values) for name,values in split.items()})
     except ValueError as exc:
         parser.error(str(exc))
-    for path in step_metrics_paths(args.episode_log,exp['seeds']).values():
-        if path.exists():
-            parser.error('Daily metrics file already exists: '+str(path))
-    for path in xld_dispatch_paths(args.episode_log,exp['seeds'],args.xld_diagnostics).values():
-        if path.exists():
-            parser.error('XLD diagnostics file already exists: '+str(path))
-    for path in trajectory_diagnostics_paths(args.episode_log,exp['seeds'],args.trajectory_diagnostics).values():
-        if path.exists():
-            parser.error('Trajectory diagnostics file already exists: '+str(path))
-    for path in checkpoint_directories(args.episode_log,exp['seeds'],args.save_checkpoints).values():
-        if path.exists():
-            parser.error('Checkpoint directory already exists: '+str(path))
-    if not args.no_plot:
-        for path in plot_output_paths(args.episode_log).values():
+    if output_preflight is not None:
+        try:
+            output_preflight(args, config)
+        except ValueError as exc:
+            parser.error(str(exc))
+    else:
+        for path in step_metrics_paths(args.episode_log,exp['seeds']).values():
             if path.exists():
-                parser.error('Figure file already exists: '+str(path))
+                parser.error('Daily metrics file already exists: '+str(path))
+        for path in xld_dispatch_paths(args.episode_log,exp['seeds'],args.xld_diagnostics).values():
+            if path.exists():
+                parser.error('XLD diagnostics file already exists: '+str(path))
+        for path in trajectory_diagnostics_paths(args.episode_log,exp['seeds'],args.trajectory_diagnostics).values():
+            if path.exists():
+                parser.error('Trajectory diagnostics file already exists: '+str(path))
+        for path in checkpoint_directories(args.episode_log,exp['seeds'],args.save_checkpoints).values():
+            if path.exists():
+                parser.error('Checkpoint directory already exists: '+str(path))
+        if not args.no_plot:
+            for path in plot_output_paths(args.episode_log).values():
+                if path.exists():
+                    parser.error('Figure file already exists: '+str(path))
     exp['diagnostics'] = args.diagnostics or args.trajectory_diagnostics
     exp['trajectory_diagnostics'] = args.trajectory_diagnostics
     exp['save_checkpoints'] = args.save_checkpoints
     exp['checkpoint_interval'] = args.checkpoint_interval
     exp['xld_diagnostics'] = args.xld_diagnostics
     data = CascadeData(args.data_dir,physical,exp)
-    run_parallel_experiment(data,physical,config,args)
+    return experiment_runner(data,physical,config,args)
 
 
 if __name__=='__main__':

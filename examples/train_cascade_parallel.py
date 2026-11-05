@@ -69,7 +69,12 @@ def check_episode_inputs(data,physical,years,days,bins):
         raise ValueError('Episode observation dimensions do not match the configured layout')
 
 
-def run_parallel_experiment(data,physical,config,args):
+def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReservoirRunner,
+                            algorithm_name=None):
+    if algorithm_name is not None:
+        if not isinstance(algorithm_name,str) or algorithm_name.lower() not in ('happo','mappo'):
+            raise ValueError('algorithm_name must be happo or mappo')
+        algorithm_name=algorithm_name.lower()
     days=positive_integer(config['train']['episode_length'],'episode_days')
     count=positive_integer(config['train']['n_rollout_threads'],'parallel_envs')
     episodes=positive_integer(config['experiment']['episodes'],'episodes')
@@ -119,6 +124,18 @@ def run_parallel_experiment(data,physical,config,args):
         check_episode_inputs(data,physical,window['source_years'],PERIODIC_EVALUATION_DAYS,bins)
     sources=sorted(list((ROOT/'harl').rglob('*.py'))+list((ROOT/'examples').glob('*.py'))+
                    list((ROOT/'harl/configs').rglob('*.yaml')))
+    if (not isinstance(data.hashes,dict) or not data.hashes or
+            any(not isinstance(key,str) or not isinstance(value,str) or not value
+                for key,value in data.hashes.items())):
+        raise ValueError('Comparison context requires nonempty input data_hashes')
+    comparison_context=json.loads(json.dumps(dict(shared_settings=dict(
+        episode_horizon_days=days,parallel_environments=count,episodes_per_seed=episodes,
+        gamma=config['algo']['gamma'],action_bins=bins,seeds=config['experiment']['seeds'],
+        evaluation_interval=eval_interval,
+        training_years=list(data.training_years),evaluation_source_years=evaluation_years,
+        window_sampling=sampling_mode,physical_config=physical,periodic_windows=periodic_windows,
+        device=config['device'],train=config['train'],model=config['model'],algo=config['algo']),
+        data_hashes=data.hashes),sort_keys=True,allow_nan=False))
     metadata=dict(record_type='run_configuration',collection_mode='five_year_parallel',
         learning_reward_architecture=dict(alpha=0.5,
             actor_reward='0.5 * own local reward + 0.5 * global generation reward',
@@ -194,6 +211,13 @@ def run_parallel_experiment(data,physical,config,args):
                               if data.service_requirements is not None else None),
         data_hashes=data.hashes,
         source_code_hashes={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sources})
+    metadata['comparison_context']=comparison_context
+    if algorithm_name is not None:
+        metadata['algorithm']=algorithm_name
+    if algorithm_name=='mappo':
+        metadata['learning_reward_architecture']['update_interpretation']=(
+            'individual-objective independent clipped PPO surrogates with a centralized critic; '
+            'system reward remains an accounting metric rather than the actor training target')
     print(json.dumps(metadata,indent=2,allow_nan=False),flush=True)
     if args.check_data_only:
         print('Data, episode calendar and observation checks passed; '
@@ -218,7 +242,7 @@ def run_parallel_experiment(data,physical,config,args):
         log_episode(metadata,stream)
         runners=[]
         for seed in config['experiment']['seeds']:
-            runner=CascadeReservoirRunner(data,physical,config,seed,episode_log=stream,
+            runner=runner_cls(data,physical,config,seed,episode_log=stream,
                                           step_log=daily_writers.get(seed),periodic_windows=periodic_windows,
                                           training_sampler=training_samplers[seed],xld_log=xld_writers.get(seed),
                                           trajectory_log=trajectory_writers.get(seed),
@@ -239,12 +263,13 @@ def run_parallel_experiment(data,physical,config,args):
             policy_checkpoints=[checkpoint for runner in runners for checkpoint in runner.checkpoint_history],
             evaluation_skipped=bool(args.skip_final_evaluation),evaluations=evaluations)
         log_episode(result,stream)
+        payload=json.loads(json.dumps(dict(episode_horizon_days=days,gamma=config['algo']['gamma'],
+            seeds=config['experiment']['seeds'],updates_per_seed=episodes//count,
+            periodic_evaluation=dict(windows=periodic_windows),
+            histories=[runner.training_history for runner in runners],
+            evaluation_histories=[runner.periodic_evaluation_history for runner in runners],
+            algorithm=algorithm_name or 'happo',comparison_context=comparison_context),allow_nan=False))
         if not args.no_plot:
-            payload=dict(episode_horizon_days=days,gamma=config['algo']['gamma'],
-                seeds=config['experiment']['seeds'],updates_per_seed=episodes//count,
-                periodic_evaluation=dict(windows=periodic_windows),
-                histories=[runner.training_history for runner in runners],
-                evaluation_histories=[runner.periodic_evaluation_history for runner in runners])
             plot_command=[args.plot_python,str(ROOT/'examples/plot_cascade_parallel.py')]
             if figure_paths:
                 plot_command.extend(['--output',str(figure_paths['training']),
@@ -255,3 +280,4 @@ def run_parallel_experiment(data,physical,config,args):
     print('Finished multi-year experiment. Training resume is not implemented; '
           'evaluation checkpoints are saved when --save-checkpoints is enabled. '
           'JSONL summaries and per-seed daily metrics CSVs are saved with --episode-log.',flush=True)
+    return payload

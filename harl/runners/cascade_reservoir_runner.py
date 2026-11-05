@@ -48,6 +48,9 @@ def validate_seed(value):
 class CascadeReservoirRunner(OnPolicyHARunner):
     """Independent reservoir actors, centralized critic, and uninterrupted episodes."""
 
+    actor_class = HAPPO
+    algorithm_name = 'happo'
+
     def __init__(self, data, physical_config, algo_args, seed, episode_log=None, step_log=None,
                  periodic_windows=None, training_sampler=None, xld_log=None,
                  trajectory_log=None, checkpoint_dir=None):
@@ -109,7 +112,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
             self.windows[self.training_window_starts[0]], self.length, self.action_bins)]
         env = self.envs[0]
         network_args = {**args['model'], **args['algo'], 'critic_output_dim': self.critic_output_dim}
-        self.actor = [HAPPO(network_args, env.observation_space[i], env.action_space[i], self.device)
+        self.actor = [self.actor_class(network_args, env.observation_space[i], env.action_space[i], self.device)
                       for i in range(self.num_agents)]
         self.critic = VCritic(network_args, env.share_observation_space[0], self.device)
         self._allocate_buffers()
@@ -316,7 +319,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                     from harl.envs.cascade_reservoir.diagnostics import before_update
                     diagnostic_before = before_update(self)
                 self.prep_training()
-                actor_info, critic_info = super().train()
+                actor_info, critic_info = self.train()
                 self.update_count += 1
                 self.training_steps += self.length*self.n_envs
                 if self.trajectory_log is not None:

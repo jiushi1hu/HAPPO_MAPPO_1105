@@ -1,10 +1,106 @@
-# Five-reservoir HAPPO
+# Five-reservoir HAPPO and MAPPO
 
 Daily operation of the WDD, BHT, XLD, XJB and THR reservoir cascade, based on
 PKU-MARL HARL. Five independent categorical actors use one centralized critic.
 The environment resolves releases upstream to downstream with zero travel delay.
 Each actor learns from its own 50/50 local/global reward. The original team
 reward remains available for evaluation, daily CSVs and historical plots.
+
+The comparison entry point also supports independent-actor MAPPO on the same
+physical environment and reward channels. The existing HAPPO actor and
+sequential-update implementation are retained.
+
+## Run HAPPO and MAPPO with three comparison figures
+
+```bash
+cd /Users/hujingxin/Documents/Code_python/HARL-main
+
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_cascade_compare.py \
+  --episodes 300 --seeds 1 2 3 --gamma 1 --eval-interval 1 --diagnostics \
+  --plot-python /Library/Frameworks/Python.framework/Versions/3.9/bin/python3
+```
+
+The new entry point defaults to `--algorithms happo mappo`. It trains fresh
+models for each algorithm and seed, then opens exactly three comparison figures:
+training return/generation, fixed-scenario evaluator return, and ecological-flow/
+guaranteed-output violation rates. Every metric panel contains separate HAPPO
+(solid red) and MAPPO (dashed blue) seed means and sample-standard-deviation bands. The seed
+sets are never averaged across algorithms. The command above keeps results in
+memory and creates no JSONL, CSV or checkpoint outputs; figures can be saved
+with the Matplotlib window's Save button.
+
+For an independent run, add `--algorithms happo` or `--algorithms mappo` to that
+command. `examples/train_cascade.py` remains the original HAPPO-only entry point.
+The comparison entry point accepts the same data, physical, training and
+evaluation overrides as the HAPPO entry point. An identical override applies to
+both algorithms. Running both doubles the configured training budget: the
+300-episode budget is per algorithm and per seed.
+
+To retain results and automatically save the three comparison PNGs, add a fresh
+comparison stem, for example `--episode-log runs/comparison_seeds123_run1.jsonl`.
+The stem itself is not a JSONL output. The launcher creates separate
+`comparison_seeds123_run1_happo.jsonl` and
+`comparison_seeds123_run1_mappo.jsonl` logs and their per-seed daily CSVs.
+`--save-checkpoints` additionally saves algorithm-specific checkpoint directories.
+All output paths for both algorithms are checked before training begins.
+Existing files are not overwritten.
+
+Saved comparison logs can be reopened without running policies again:
+
+```bash
+/Library/Frameworks/Python.framework/Versions/3.9/bin/python3 examples/plot_cascade_compare.py \
+  --happo-log runs/comparison_seeds123_run1_happo.jsonl \
+  --mappo-log runs/comparison_seeds123_run1_mappo.jsonl
+```
+
+The plotter checks matching data hashes, physics, service thresholds, training
+and evaluation years, scenario inflows/initial conditions, seeds, networks,
+optimizer settings, discount and episode/update budgets. Incompatible logs are
+rejected. Failed or missing evaluations remain gaps. The two evaluation figures
+use fixed training scenarios; final held-out results remain separate evaluations
+in each algorithm's log. Existing team-return definitions and physical violation
+counts are preserved.
+
+## MAPPO implementation and comparison scope
+
+The integration was based on the local PKU-MARL HARL reference at
+`/Users/hujingxin/Documents/Code_python/kelong/HARL`, commit
+`b1af98b0dbab72a2eee9d160751cd09aedbb8ce2`, particularly
+`harl/algorithms/actors/mappo.py`, `harl/runners/on_policy_ma_runner.py`,
+the stochastic-policy/value networks, and `harl/configs/algos_cfgs/mappo.yaml`.
+The reference repository is not a runtime dependency and was not modified.
+
+The reference supports both shared and independent actors. This comparison uses
+five independent actors for both algorithms, with identical initial networks for
+each paired seed. Both use the existing MLP widths `[64, 128, 256, 256]`,
+ReLU/LayerNorm layers, 100-command categorical distributions, a centralized
+six-output critic, ValueNorm, individual 50/50 local/global rewards, GAE, forced
+action masks, and episode-start weights. The shared YAML remains
+`harl/configs/algos_cfgs/happo_cascade.yaml`; separate divergent hyperparameter
+defaults are deliberately not introduced.
+
+MAPPO updates each independent policy with the rollout's original action
+likelihoods and its PPO clipped surrogate plus entropy regularization. It has
+no HAPPO sequential likelihood correction and no command-imitation objective.
+Its shared buffer factor slot is checked to be all ones and is not multiplied
+into the loss. The critic update and reservoir collection/evaluation lifecycle
+are reused. Optional local KL stopping/rollback is available to both methods;
+the HAPPO-specific joint sequential KL budget is rejected for MAPPO before
+training (`--no-joint-kl-limit` selects the compatible default).
+
+This is a task-adapted, non-parameter-sharing MAPPO comparison. HARL's generic
+EP default uses a common scalar reward/value; this task retains its existing
+individual mixed rewards and six value outputs for both algorithms. It also
+retains this repository's full-row loss averaging and calendar discount weights,
+rather than introducing the reference's active-count normalization. Therefore,
+the comparison isolates the update-rule difference under the existing reservoir
+formulation; it is not a reproduction of every generic HARL default.
+
+MAPPO checkpoints record their algorithm identity and use the same validated
+inference/replay networks. Strict source/config fingerprints remain enabled:
+older checkpoints created before the integration require their matching source
+version for replay. No training-resume support has been added. The diagnostic
+CSV's compatibility column named `happo_factor` is always one for MAPPO.
 
 ## Current experiment
 
@@ -24,7 +120,7 @@ The standard budget is 300 completed episodes per seed: 50 HAPPO updates and
 episodes under one frozen policy, giving buffers of shape `[1825, 6, ...]`.
 Episode counts must be divisible by the number of workers.
 
-## Launch from VS Code
+## HAPPO-only launch from VS Code
 
 ```bash
 cd /Users/hujingxin/Documents/Code_python/HARL-main
