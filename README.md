@@ -1,12 +1,14 @@
 # Five-reservoir HAPPO and MAPPO
 
 Daily operation of the WDD, BHT, XLD, XJB and THR reservoir cascade, based on
-PKU-MARL HARL. Five independent categorical actors use one centralized critic.
+PKU-MARL HARL. HAPPO uses five independent categorical actors; MAPPO uses one
+identity-conditioned actor shared by all five reservoir agents. Both use one
+centralized critic.
 The environment resolves releases upstream to downstream with zero travel delay.
 Each actor learns from its own 50/50 local/global reward. The original team
 reward remains available for evaluation, daily CSVs and historical plots.
 
-The comparison entry point also supports independent-actor MAPPO on the same
+The comparison entry point runs shared-actor MAPPO on the same
 physical environment and reward channels. The existing HAPPO actor and
 sequential-update implementation are retained.
 
@@ -54,8 +56,9 @@ Saved comparison logs can be reopened without running policies again:
 ```
 
 The plotter checks matching data hashes, physics, service thresholds, training
-and evaluation years, scenario inflows/initial conditions, seeds, networks,
-optimizer settings, discount and episode/update budgets. Incompatible logs are
+and evaluation years, scenario inflows/initial conditions, seeds, hidden widths,
+optimizer settings, discount and episode/update budgets. Actor sharing is the
+explicit architectural difference and is recorded separately. Incompatible logs are
 rejected. Failed or missing evaluations remain gaps. The two evaluation figures
 use fixed training scenarios; final held-out results remain separate evaluations
 in each algorithm's log. Existing team-return definitions and physical violation
@@ -70,37 +73,60 @@ The integration was based on the local PKU-MARL HARL reference at
 the stochastic-policy/value networks, and `harl/configs/algos_cfgs/mappo.yaml`.
 The reference repository is not a runtime dependency and was not modified.
 
-The reference supports both shared and independent actors. This comparison uses
-five independent actors for both algorithms, with identical initial networks for
-each paired seed. Both use the existing MLP widths `[64, 128, 256, 256]`,
+The reference supports both shared and independent actors. HAPPO retains its
+five independent actors. MAPPO now uses one actor network and one Adam optimizer,
+accessed through five lightweight reservoir interfaces. Each interface appends a
+five-component one-hot reservoir identity to its local observation, so the shared
+network can distinguish reservoirs with different physical characteristics.
+With daily limits enabled, physical observations and buffers remain 15-dimensional,
+MAPPO's actor input is 20-dimensional, and HAPPO's actor input remains 15-dimensional.
+The centralized critic still receives 38 system features and produces six values.
+The physical model, observations supplied by the environment, rewards and service
+thresholds have not changed. Both algorithms use the existing hidden widths `[64, 128, 256, 256]`,
 ReLU/LayerNorm layers, 100-command categorical distributions, a centralized
 six-output critic, ValueNorm, individual 50/50 local/global rewards, GAE, forced
 action masks, and episode-start weights. The shared YAML remains
-`harl/configs/algos_cfgs/happo_cascade.yaml`; separate divergent hyperparameter
-defaults are deliberately not introduced.
+`harl/configs/algos_cfgs/happo_cascade.yaml`. Its `share_param: false` continues to
+describe HAPPO; the MAPPO runner and comparison launcher explicitly enable sharing
+only for MAPPO and record the effective setting. Random seeds and hydrological
+window schedules remain paired; actor parameter tensors and their initialization
+are no longer expected to match across these different architectures.
 
-MAPPO updates each independent policy with the rollout's original action
-likelihoods and its PPO clipped surrogate plus entropy regularization. It has
+MAPPO pools the five reservoirs' samples, preserving each row's own mixed-return
+advantage, old action likelihood, identity, controllability and calendar weight.
+It performs one optimizer step per joint minibatch, rather than training the same
+network five times through the individual agent loop. With the default single
+minibatch and five epochs, this is five shared-actor steps per update, over
+54,750 reservoir-agent rows. MAPPO uses the PPO clipped surrogate plus entropy
+regularization. It has
 no HAPPO sequential likelihood correction and no command-imitation objective.
 Its shared buffer factor slot is checked to be all ones and is not multiplied
 into the loss. The critic update and reservoir collection/evaluation lifecycle
-are reused. Optional local KL stopping/rollback is available to both methods;
+are reused. Optional local KL stopping/rollback monitors each HAPPO actor or the
+pooled ID-conditioned MAPPO policy respectively;
 the HAPPO-specific joint sequential KL budget is rejected for MAPPO before
 training (`--no-joint-kl-limit` selects the compatible default).
 
-This is a task-adapted, non-parameter-sharing MAPPO comparison. HARL's generic
+This is a task-adapted, parameter-sharing MAPPO comparison. HARL's generic
 EP default uses a common scalar reward/value; this task retains its existing
 individual mixed rewards and six value outputs for both algorithms. It also
 retains this repository's full-row loss averaging and calendar discount weights,
 rather than introducing the reference's active-count normalization. Therefore,
-the comparison isolates the update-rule difference under the existing reservoir
-formulation; it is not a reproduction of every generic HARL default.
+the comparison now includes both the update-rule difference and policy parameter
+sharing under the existing reservoir formulation. It does not isolate the
+sequential-correction effect alone or reproduce every generic HARL default.
 
-MAPPO checkpoints record their algorithm identity and use the same validated
-inference/replay networks. Strict source/config fingerprints remain enabled:
+MAPPO checkpoints record their algorithm identity, sharing flag and reservoir IDs,
+and save one actor state. Loading reconstructs one frozen shared network with five
+identity-conditioned interfaces for inference/replay. HAPPO retains its five-state
+checkpoint layout. Strict source/config fingerprints remain enabled:
 older checkpoints created before the integration require their matching source
 version for replay. No training-resume support has been added. The diagnostic
 CSV's compatibility column named `happo_factor` is always one for MAPPO.
+Per-reservoir diagnostics still have five rows; shared optimizer statistics are
+marked `shared_actor_info_repeated` and must not be summed as five independent
+optimizer lifecycles. Actor architecture metadata records the network count,
+optimizer count, raw input dimension and identity-augmented input dimension.
 
 ## Current experiment
 
@@ -511,13 +537,43 @@ the same units for comparison.
 
 ## Xiluodu dispatch diagnostics
 
-Add `--xld-diagnostics` together with a new `--episode-log` path to inspect the
-final policy's XLD guaranteed-output violations. Diagnostics write one compact
-row for every XLD day in the last scheduled periodic evaluation (three fixed
-training-only windows) and the final held-out sequence. They do not write
-training-worker trajectories or repeat daily traces at earlier evaluation
-rounds. A standard run adds 7,300 rows per seed, or 5,475 when final held-out
-evaluation is skipped. The existing team CSVs and figures retain their formats.
+Add `--xld-diagnostics` to either training entry point to inspect the final
+policy's XLD guaranteed-output violations. No `--episode-log` is required:
+without a log, diagnostics remain in memory and print a terminal summary without
+creating CSVs, checkpoints, JSONL or extra figures. For the current comparison:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_cascade_compare.py \
+  --algorithms happo mappo --episodes 300 --seeds 1 2 3 --gamma 1 \
+  --eval-interval 1 --diagnostics --xld-diagnostics \
+  --plot-python /Library/Frameworks/Python.framework/Versions/3.9/bin/python3
+```
+
+The terminal separately reports HAPPO/MAPPO and fixed-training/held-out scopes.
+For each scope it prints the XLD violation rate and three exhaustive groups:
+
+- `actor_missed_feasible_discrete`: a configured XLD command could meet the
+  requirement in the reached state, but the actual policy did not select it.
+- `discrete_grid_gap`: a continuous command could meet it, but none of the
+  configured discrete commands could.
+- `same_state_continuous_unattainable`: no continuous command could meet it in
+  that state; capacity, water, dispatch and head labels are also reported.
+
+Group fractions use XLD **violation days** as their denominator. The XLD violation
+rate uses all active XLD days, not all five reservoirs' days. Counts are pooled
+across complete windows and seeds, rather than averaging percentages. Incomplete
+evaluation coverage is explicitly reported without a pooled rate. Each window's
+summary remains in the returned evaluation records; the final pooled data is
+available as `xld_dispatch_summary` in the in-memory plot payload and optional log.
+
+Diagnostics observe only the last scheduled periodic evaluation (three fixed
+training-only windows) and the final held-out sequence. They do not add training
+or evaluation episodes, inspect training-worker trajectories or repeat daily
+searches at earlier evaluation rounds. A standard run observes 7,300 XLD days per
+seed and algorithm, or 5,475 when final held-out evaluation is skipped.
+
+For daily CSV evidence, additionally provide a new `--episode-log` path. A
+separate 200-command, 40% requirement sensitivity example is:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_cascade.py \
@@ -530,7 +586,7 @@ PYTHONDONTWRITEBYTECODE=1 /opt/anaconda3/envs/harl/bin/python -B examples/train_
   --plot-python /Library/Frameworks/Python.framework/Versions/3.9/bin/python3
 ```
 
-The additional files are named `<log_stem>_seed1_xld_dispatch.csv`, and likewise
+With a log, the additional files are named `<log_stem>_seed1_xld_dispatch.csv`, and likewise
 for seeds 2 and 3, beside the JSONL log. Filter their classification column to
 review violations. Scalar records include storage and daily bounds, actual
 inflow and upstream release, selected action, feasible release limits, turbine

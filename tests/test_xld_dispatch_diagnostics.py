@@ -339,6 +339,10 @@ class XLDEvaluationIntegrationTest(unittest.TestCase):
             xld_log=XLDDispatchWriter(output), evaluation_round=50, window_id='check_1965'))
         summary = measured.pop('xld_dispatch_diagnostics')
         self.assertEqual(measured, baseline)
+        console = evaluate_policy(actors, self.data, self.physical, **dict(options,
+            xld_diagnostics=True, evaluation_round=50, window_id='check_1965'))
+        self.assertEqual(console.pop('xld_dispatch_diagnostics'), summary)
+        self.assertEqual(console, baseline)
         self.assertEqual(summary['completed_steps'], 8)
         self.assertEqual(summary['violation_count'],
             baseline['service_shortfalls']['guaranteed_output']['by_reservoir_days'][2])
@@ -363,7 +367,17 @@ class XLDEvaluationIntegrationTest(unittest.TestCase):
         output = io.StringIO()
         measured = evaluate_periodic_policy(actors, self.data, self.physical, **dict(
             options, xld_log=XLDDispatchWriter(output)))
+        console = evaluate_periodic_policy(actors, self.data, self.physical, **dict(
+            options, xld_diagnostics=True))
+        self.assertEqual(console, measured)
         self.assertEqual(measured['status'], 'ok')
+        aggregate = measured.pop('xld_dispatch_diagnostics')
+        self.assertEqual(aggregate['completed_steps'], 24)
+        self.assertEqual(aggregate['violation_count'], sum(
+            window['service_shortfalls']['guaranteed_output']['by_reservoir_days'][2]
+            for window in measured['windows']))
+        self.assertEqual(sum(aggregate['classification_counts'].values()), 24)
+        self.assertEqual(sum(aggregate['group_counts'].values()), aggregate['violation_count'])
         for window in measured['windows']:
             summary = window.pop('xld_dispatch_diagnostics')
             self.assertEqual(summary['completed_steps'], 8)
@@ -375,6 +389,124 @@ class XLDEvaluationIntegrationTest(unittest.TestCase):
         self.assertEqual({row['window_id'] for row in records},
                          {w['window_id'] for w in windows})
         self.assertEqual({row['evaluation_round'] for row in records}, {'2'})
+
+    def test_console_diagnostic_switch_requires_boolean_before_environment_creation(self):
+        from harl.envs.cascade_reservoir.evaluation import evaluate_policy
+        from harl.envs.cascade_reservoir.periodic_evaluation import evaluate_periodic_policy
+        for invalid in (None, 0, 1, 'true', np.bool_(True)):
+            with self.subTest(value=invalid), mock.patch(
+                    'harl.envs.cascade_reservoir.evaluation.episode_environment') as create_env:
+                with self.assertRaisesRegex(ValueError, 'boolean'):
+                    evaluate_policy(self.actors(), self.data, self.physical, seed=1,
+                        episode=1, training_steps=0, gamma=1., source_years=[1965],
+                        episode_days=8, xld_diagnostics=invalid)
+                create_env.assert_not_called()
+            with self.subTest(periodic_value=invalid), mock.patch(
+                    'harl.envs.cascade_reservoir.periodic_evaluation._validated_windows') as validate:
+                with self.assertRaisesRegex(ValueError, 'boolean'):
+                    evaluate_periodic_policy(self.actors(), self.data, self.physical, seed=1,
+                        evaluation_round=1, training_steps=0, windows=[], gamma=1.,
+                        xld_diagnostics=invalid)
+                validate.assert_not_called()
+
+    def test_missing_window_diagnostic_does_not_produce_a_survivor_aggregate(self):
+        from harl.envs.cascade_reservoir.evaluation import evaluate_policy
+        from harl.envs.cascade_reservoir.periodic_evaluation import (
+            evaluate_periodic_policy, select_periodic_windows)
+        windows = select_periodic_windows(self.data, episode_days=8)
+
+        def missing_first(*args, **kwargs):
+            measured = evaluate_policy(*args, **kwargs)
+            if kwargs['window_id'] == windows[0]['window_id']:
+                measured.pop('xld_dispatch_diagnostics')
+            return measured
+
+        with mock.patch('harl.envs.cascade_reservoir.periodic_evaluation.evaluate_policy',
+                        side_effect=missing_first), mock.patch(
+                'harl.envs.cascade_reservoir.xld_diagnostics.aggregate_xld_summaries',
+                side_effect=AssertionError('Incomplete windows were aggregated')):
+            result = evaluate_periodic_policy(self.actors(), self.data, self.physical,
+                seed=1, evaluation_round=2, training_steps=96, windows=windows,
+                gamma=1., xld_diagnostics=True)
+        self.assertEqual(result['status'], 'ok')  # The physical evaluations succeeded.
+        self.assertIsNone(result['xld_dispatch_diagnostics'])
+        partial = result['partial_xld_dispatch_diagnostics']
+        self.assertEqual(partial['status'], 'incomplete')
+        self.assertEqual(partial['complete_window_count'], 2)
+        self.assertEqual(partial['expected_window_count'], 3)
+        self.assertIsNone(partial['windows'][0]['summary'])
+
+    def test_failed_window_preserves_console_prefix_without_pooled_diagnostic(self):
+        from harl.envs.cascade_reservoir.evaluation import evaluate_policy
+        from harl.envs.cascade_reservoir.periodic_evaluation import (
+            evaluate_periodic_policy, select_periodic_windows)
+        windows = select_periodic_windows(self.data, episode_days=8)
+        env = episode_environment(self.data, self.physical, windows[0]['source_years'],
+                                  days=8, action_bins=200)
+        actual_step = env.step
+
+        def fail_second_day(actions):
+            if env.index-env.start == 1:
+                raise InfeasibleCascade('Synthetic second-day physical failure')
+            return actual_step(actions)
+
+        def evaluate_with_one_failure(*args, **kwargs):
+            if kwargs['window_id'] != windows[0]['window_id']:
+                return evaluate_policy(*args, **kwargs)
+            with mock.patch('harl.envs.cascade_reservoir.evaluation.episode_environment',
+                            return_value=env), mock.patch.object(env, 'step', side_effect=fail_second_day):
+                return evaluate_policy(*args, **kwargs)
+
+        with mock.patch('harl.envs.cascade_reservoir.periodic_evaluation.evaluate_policy',
+                        side_effect=evaluate_with_one_failure), mock.patch(
+                'harl.envs.cascade_reservoir.xld_diagnostics.aggregate_xld_summaries',
+                side_effect=AssertionError('Failed windows were aggregated')):
+            result = evaluate_periodic_policy(self.actors(), self.data, self.physical,
+                seed=1, evaluation_round=2, training_steps=96, windows=windows,
+                gamma=1., xld_diagnostics=True)
+        self.assertEqual(result['status'], 'failed')
+        self.assertIsNone(result['evaluator_return'])
+        self.assertIsNone(result['xld_dispatch_diagnostics'])
+        self.assertEqual(result['partial_xld_dispatch_diagnostics']['complete_window_count'], 2)
+        first = result['windows'][0]
+        self.assertEqual(first['failure']['completed_steps'], 1)
+        self.assertEqual(first['partial_xld_dispatch_diagnostics']['completed_steps'], 1)
+
+    def test_console_diagnostics_accept_shared_mappo_views_without_policy_updates(self):
+        import torch
+        from harl.algorithms.actors.shared_mappo import make_shared_mappo_agents
+        from harl.envs.cascade_reservoir.evaluation import evaluate_policy
+        env = episode_environment(self.data, self.physical, [1965], days=8, action_bins=7)
+        network_args = {**self.args['model'], **self.args['algo'],
+                        'hidden_sizes': [8, 8], 'action_bins': 7, 'share_param': True}
+        actors = make_shared_mappo_agents(network_args, env.observation_space,
+                                         env.action_space, torch.device('cpu'))
+        core = actors[0].core
+        self.assertTrue(all(actor.core is core for actor in actors))
+        parameters = copy.deepcopy(core.actor.state_dict())
+        optimizer = copy.deepcopy(core.actor_optimizer.state_dict())
+        torch_before = torch.get_rng_state().clone()
+        numpy_before, python_before = np.random.get_state(), random.getstate()
+        options = dict(seed=1, episode=1, training_steps=0, gamma=1.,
+                       source_years=[1965], episode_days=8, deterministic=True)
+        with mock.patch.object(core.actor_optimizer, 'step',
+                               side_effect=AssertionError('Evaluation updated the shared actor')):
+            baseline = evaluate_policy(actors, self.data, self.physical, **options)
+            measured = evaluate_policy(actors, self.data, self.physical,
+                                       **dict(options, xld_diagnostics=True))
+        summary = measured.pop('xld_dispatch_diagnostics')
+        self.assertEqual(measured, baseline)
+        self.assertEqual(summary['violation_count'],
+            baseline['service_shortfalls']['guaranteed_output']['by_reservoir_days'][2])
+        for key, expected in parameters.items():
+            self.assertTrue(torch.equal(core.actor.state_dict()[key], expected))
+        self.assertEqual(core.actor_optimizer.state_dict(), optimizer)
+        self.assertTrue(torch.equal(torch.get_rng_state(), torch_before))
+        self.assertEqual(random.getstate(), python_before)
+        numpy_after = np.random.get_state()
+        self.assertEqual(numpy_before[0], numpy_after[0])
+        np.testing.assert_array_equal(numpy_before[1], numpy_after[1])
+        self.assertEqual(numpy_before[2:], numpy_after[2:])
 
     def test_actual_failure_preserves_only_completed_diagnostic_days(self):
         from harl.envs.cascade_reservoir.evaluation import evaluate_policy
@@ -439,6 +571,41 @@ class XLDEvaluationIntegrationTest(unittest.TestCase):
             self.assertEqual(final.call_args.kwargs['window_id'], 'held_out_sequence')
             self.assertEqual(runner.training_sampler.batches_consumed, 0)
             training.assert_not_called()
+
+    def test_runner_routes_console_diagnostics_without_a_csv_writer(self):
+        from harl.envs.cascade_reservoir.periodic_evaluation import select_periodic_windows
+        from harl.runners.cascade_reservoir_runner import CascadeReservoirRunner
+        args = copy.deepcopy(self.args)
+        args['train'].update(episode_length=4, n_rollout_threads=2)
+        args['model'].update(hidden_sizes=[8, 8], action_bins=7)
+        args['experiment'].update(episodes=4, diagnostics=False, xld_diagnostics=True)
+
+        def observation(*unused, **keywords):
+            return dict(record_type='periodic_evaluation', status='ok', seed=1,
+                        evaluation_round=keywords['evaluation_round'])
+
+        with ExitStack() as stack:
+            stack.enter_context(redirect_stdout(io.StringIO()))
+            runner = CascadeReservoirRunner(self.data, self.physical, args, 1,
+                periodic_windows=select_periodic_windows(self.data, episode_days=4))
+            stack.callback(runner.close)
+            periodic = stack.enter_context(mock.patch(
+                'harl.runners.cascade_reservoir_runner.evaluate_periodic_policy',
+                side_effect=observation))
+            for update in range(3):
+                runner.update_count, runner.training_steps = update, update*8
+                runner.periodic_evaluation()
+            self.assertEqual([call.kwargs['xld_diagnostics'] for call in periodic.call_args_list],
+                             [False, False, True])
+            self.assertTrue(all(call.kwargs['xld_log'] is None for call in periodic.call_args_list))
+            final = stack.enter_context(mock.patch(
+                'harl.runners.cascade_reservoir_runner.evaluate_policy',
+                return_value=dict(source_years=list(self.data.evaluation_years))))
+            runner.completed_episodes = 4
+            runner.final_evaluation()
+            self.assertTrue(final.call_args.kwargs['xld_diagnostics'])
+            self.assertIsNone(final.call_args.kwargs['xld_log'])
+            self.assertEqual(runner.training_sampler.batches_consumed, 0)
 
 
 if __name__ == '__main__':

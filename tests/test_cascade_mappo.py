@@ -21,6 +21,9 @@ if str(ROOT) not in sys.path:
 
 from harl.algorithms.actors.happo import HAPPO
 from harl.algorithms.actors.mappo import MAPPO
+from harl.algorithms.actors.shared_mappo import (
+    SharedMAPPOAgent, augment_agent_observations, joint_shared_actor_batch,
+    make_shared_mappo_agents)
 from harl.common.buffers.on_policy_actor_buffer import OnPolicyActorBuffer
 from harl.envs.cascade_reservoir.data_loader import CascadeData
 from harl.envs.cascade_reservoir.evaluation import evaluate_policy
@@ -184,11 +187,9 @@ class MAPPOObjectiveTest(unittest.TestCase):
         self.assert_state_equal(model, actor.actor.state_dict())
         self.assert_state_equal(optimizer, actor.actor_optimizer.state_dict())
 
-    def test_shared_parameters_and_joint_sequential_budget_are_explicitly_unsupported(self):
-        for changes in (dict(share_param=True),
-                        dict(target_kl=.01, kl_rollback=True, joint_target_kl=.03)):
-            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, 'MAPPO'):
-                self.actor(**changes)
+    def test_joint_sequential_budget_is_explicitly_unsupported(self):
+        with self.assertRaisesRegex(ValueError, 'MAPPO'):
+            self.actor(target_kl=.01, kl_rollback=True, joint_target_kl=.03)
 
 
 class MAPPORunnerDispatchTest(unittest.TestCase):
@@ -242,6 +243,174 @@ class MAPPORunnerDispatchTest(unittest.TestCase):
         self.assertEqual(critic_info['value_loss'], 0.)
 
 
+class SharedMAPPOObjectiveTest(unittest.TestCase):
+    setUp = MAPPOObjectiveTest.setUp
+    sample = MAPPOObjectiveTest.sample
+    buffer = MAPPOObjectiveTest.buffer
+    assert_state_equal = MAPPOObjectiveTest.assert_state_equal
+
+    def views(self, **changes):
+        torch.manual_seed(21)
+        return make_shared_mappo_agents(dict(self.args, **changes),
+            [self.obs_space]*5, [self.act_space]*5)
+
+    def rollouts(self, views):
+        buffers, advantages = [], []
+        for i, view in enumerate(views):
+            buffer, advantage = self.buffer(view)
+            buffer.obs[:-1, 0] += np.float32(.1*i)
+            with torch.no_grad():
+                logp, _, _ = view.evaluate_actions(buffer.obs[:-1, 0], buffer.actions[:, 0])
+            buffer.action_log_probs[:, 0] = logp.numpy()
+            buffers.append(buffer)
+            advantages.append(advantage.copy())
+        return buffers, advantages
+
+    def test_one_core_optimizer_and_identity_inputs_without_extra_initializers(self):
+        views = self.views()
+        after_factory = torch.get_rng_state().clone()
+        torch.manual_seed(21)
+        reference = MAPPO(dict(self.args, share_param=True),
+            Box(np.r_[self.obs_space.low, np.zeros(5)].astype(np.float32),
+                np.r_[self.obs_space.high, np.ones(5)].astype(np.float32), dtype=np.float32),
+            self.act_space)
+        self.assertTrue(torch.equal(after_factory, torch.get_rng_state()))
+        self.assert_state_equal(views[0].actor.state_dict(), reference.actor.state_dict())
+        self.assertEqual(len({id(view.actor) for view in views}), 1)
+        self.assertEqual(len({id(view.actor_optimizer) for view in views}), 1)
+        obs = np.array([[.2, -.3], [.4, .1]], dtype=np.float32)
+        saved = obs.copy()
+        for i, view in enumerate(views):
+            self.assertIs(view.core, view.shared_core)
+            self.assertEqual(view.obs_space.shape, (2,))
+            augmented = augment_agent_observations(obs, i)
+            np.testing.assert_array_equal(augmented[:, :2], obs)
+            np.testing.assert_array_equal(augmented[:, 2:], np.eye(5, dtype=np.float32)[[i, i]])
+            with torch.no_grad():
+                expected = reference.get_actions(augmented, deterministic=True)
+                actual = view.get_actions(obs, deterministic=True)
+            for left, right in zip(expected, actual):
+                torch.testing.assert_close(left, right, rtol=0., atol=0.)
+        np.testing.assert_array_equal(obs, saved)
+        views[2].actor_num_mini_batch = 2
+        self.assertEqual(views[0].core.actor_num_mini_batch, 2)
+        with self.assertRaisesRegex(ValueError, 'share_param_train'):
+            views[0].train(None, None, 'EP')
+
+    def test_identity_helper_supports_tensor_batches_and_frozen_views(self):
+        views = self.views()
+        obs = torch.ones((2, 3, 2), requires_grad=True)
+        augmented = augment_agent_observations(obs, 3)
+        self.assertEqual(tuple(augmented.shape), (2, 3, 7))
+        augmented.sum().backward()
+        torch.testing.assert_close(obs.grad, torch.ones_like(obs))
+        with self.assertRaises(ValueError):
+            augment_agent_observations(obs, 5)
+        # Frozen replay needs neither an optimizer nor training actor methods.
+        core = views[0].core
+        frozen = SimpleNamespace(args=core.args, actor=core.actor, obs_space=core.obs_space)
+        view = SharedMAPPOAgent(frozen, 2)
+        raw = np.array([[.3, -.5]], dtype=np.float32)
+        with torch.no_grad():
+            action = view.act(raw, deterministic=True)
+            expected = views[2].act(raw, deterministic=True)
+            left = view.evaluate_actions(raw, action, return_entropy_per_sample=True)
+            right = views[2].evaluate_actions(raw, action, return_entropy_per_sample=True)
+        torch.testing.assert_close(action, expected, rtol=0., atol=0.)
+        torch.testing.assert_close(left[0], right[0], rtol=0., atol=0.)
+        torch.testing.assert_close(left[1], right[1], rtol=0., atol=0.)
+
+    def test_joint_rows_preserve_own_targets_masks_clocks_and_source_buffers(self):
+        views = self.views()
+        buffers, advantages = self.rollouts(views)
+        for i, buffer in enumerate(buffers):
+            buffer.masks[1+i%3] = 0.
+            buffer.active_masks[i%4] = 0.
+            advantages[i] += np.float32(i)
+        snapshots = [copy.deepcopy(buffer.__dict__) for buffer in buffers]
+        joint, joined = joint_shared_actor_batch(views[0].core, buffers, advantages, 5)
+        self.assertEqual(joint.obs.shape, (5, 5, 7))
+        for i, buffer in enumerate(buffers):
+            np.testing.assert_array_equal(joint.obs[:, i, :2], buffer.obs[:, 0])
+            np.testing.assert_array_equal(joint.obs[:, i, 2:],
+                np.broadcast_to(np.eye(5, dtype=np.float32)[i], (5, 5)))
+            np.testing.assert_array_equal(joined[:, i], advantages[i][:, 0])
+            np.testing.assert_array_equal(joint.action_log_probs[:, i], buffer.action_log_probs[:, 0])
+            np.testing.assert_array_equal(joint.active_masks[:, i], buffer.active_masks[:, 0])
+            np.testing.assert_array_equal(joint.discount_weights(.5)[:, i], buffer.discount_weights(.5)[:, 0])
+            for name in ('obs', 'actions', 'action_log_probs', 'masks', 'active_masks', 'factor'):
+                np.testing.assert_array_equal(getattr(buffer, name), snapshots[i][name])
+        with self.assertRaisesRegex(ValueError, 'own advantage'):
+            joint_shared_actor_batch(views[0].core, buffers, joined, 5)
+
+    def test_shared_gradient_matches_one_joint_minibatch_and_one_adam_step(self):
+        views = self.views(ppo_epoch=1)
+        core = views[0].core
+        buffers, advantages = self.rollouts(views)
+        joint, joined = joint_shared_actor_batch(core, buffers, advantages, 5)
+        expected = copy.deepcopy(core)
+        torch.manual_seed(72)
+        sample = next(joint.feed_forward_generator_actor(joined, 1,
+            objective_weights=joint.discount_weights(self.args['gamma'])))
+        expected.update(sample)
+        torch.manual_seed(72)
+        with mock.patch.object(core, 'update', wraps=core.update) as update:
+            info = core.share_param_train(buffers, advantages, 5, 'EP')
+        self.assertEqual(update.call_count, 1)
+        self.assertEqual(info['optimizer_steps'], 1.)
+        self.assertEqual(info['ratio_samples'], 20.)
+        self.assert_state_equal(expected.actor.state_dict(), core.actor.state_dict())
+        self.assert_state_equal(expected.actor_optimizer.state_dict(), core.actor_optimizer.state_dict())
+        self.assertTrue(all(float(state['step']) == 1.
+                            for state in core.actor_optimizer.state.values()))
+
+    def test_fallback_normalization_stays_per_reservoir_and_skips_double_normalization(self):
+        views = self.views(normalize_shared_advantages=False)
+        buffers, advantages = self.rollouts(views)
+        for i in range(5):
+            advantages[i] = advantages[i]*(i+1)+10.*i
+        buffers[2].active_masks[:-1] = 0.
+        buffers[3].active_masks[1] = 0.
+        core = views[0].core
+        joint, joined = joint_shared_actor_batch(core, buffers, advantages, 5)
+        for i, buffer in enumerate(buffers):
+            active = buffer.active_masks[:-1] > 0.
+            if active.any():
+                selected = advantages[i][active]
+                expected = (advantages[i]-selected.mean())/(selected.std()+1e-5)
+            else:
+                expected = np.zeros_like(advantages[i])
+            np.testing.assert_array_equal(joined[:, i:i+1], expected)
+        with mock.patch.object(core, 'train', return_value={}) as train:
+            core.share_param_train(buffers, advantages, 5, 'EP')
+        self.assertTrue(train.call_args.kwargs['advantages_normalized'])
+        np.testing.assert_array_equal(train.call_args.args[1], joined)
+
+    def test_shared_diagnostics_preserve_updates_rng_and_accept_raw_view_buffers(self):
+        views = self.views()
+        core = views[0].core
+        measured_core = copy.deepcopy(core)
+        measured_views = [SharedMAPPOAgent(measured_core, i) for i in range(5)]
+        buffers, advantages = self.rollouts(views)
+        measured_buffers = copy.deepcopy(buffers)
+        torch.manual_seed(72)
+        core.share_param_train(buffers, advantages, 5, 'EP')
+        rng = torch.get_rng_state().clone()
+        torch.manual_seed(72)
+        info = measured_core.share_param_train(measured_buffers, advantages, 5, 'EP', diagnostics=True)
+        self.assertTrue(torch.equal(rng, torch.get_rng_state()))
+        self.assert_state_equal(core.actor.state_dict(), measured_core.actor.state_dict())
+        self.assert_state_equal(core.actor_optimizer.state_dict(), measured_core.actor_optimizer.state_dict())
+        self.assertEqual(info['optimizer_steps'], 2.)
+        self.assertEqual(info['ratio_samples'], 40.)
+        for view, buffer, advantage in zip(measured_views, measured_buffers, advantages):
+            distribution = view.rollout_distribution(buffer)
+            self.assertEqual(view.rollout_kl(buffer, distribution), 0.)
+            metrics = view.surrogate_metrics(buffer, advantage, buffer.discount_weights(.5))
+            self.assertTrue(all(np.isfinite(value) for value in metrics.values()))
+
+
+
 class CascadeMAPPOIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -255,22 +424,30 @@ class CascadeMAPPOIntegrationTest(unittest.TestCase):
         cls.data = CascadeData(ROOT/'data/cascade_reservoir_new', cls.physical, cls.args['experiment'])
         cls.windows = select_periodic_windows(cls.data, episode_days=4)
 
-    def test_same_seed_initializes_identical_independent_networks(self):
+    def test_shared_actor_identity_inputs_and_repeatable_initialization(self):
         happo = CascadeReservoirRunner(self.data, self.physical, self.args, 1,
                                         periodic_windows=self.windows)
         self.addCleanup(happo.close)
-        happo_rng = torch.get_rng_state().clone()
         mappo = CascadeMAPPORunner(self.data, self.physical, self.args, 1,
                                    periodic_windows=self.windows)
         self.addCleanup(mappo.close)
-        self.assertTrue(torch.equal(happo_rng, torch.get_rng_state()))
-        self.assertEqual(len({id(a.actor) for a in mappo.actor}), 5)
-        for ha, ma in zip(happo.actor, mappo.actor):
-            self.assertIsInstance(ma, MAPPO)
-            for name, value in ha.actor.state_dict().items():
-                self.assertTrue(torch.equal(value, ma.actor.state_dict()[name]))
-        for name, value in happo.critic.critic.state_dict().items():
-            self.assertTrue(torch.equal(value, mappo.critic.critic.state_dict()[name]))
+        rng = torch.get_rng_state().clone()
+        repeat = CascadeMAPPORunner(self.data, self.physical, self.args, 1,
+                                    periodic_windows=self.windows)
+        self.addCleanup(repeat.close)
+        self.assertTrue(torch.equal(rng, torch.get_rng_state()))
+        self.assertEqual(len({id(a.actor) for a in happo.actor}), 5)
+        self.assertEqual(len({id(a.actor) for a in mappo.actor}), 1)
+        self.assertEqual(len({id(a.actor_optimizer) for a in mappo.actor}), 1)
+        for ma in mappo.actor:
+            self.assertIsInstance(ma, SharedMAPPOAgent)
+            self.assertIs(ma.shared_core, mappo.actor[0].shared_core)
+            self.assertEqual(ma.obs_space.shape, happo.actor[0].obs_space.shape)
+            self.assertEqual(ma.core.obs_space.shape[0], ma.obs_space.shape[0]+5)
+        for name, value in mappo.actor[0].actor.state_dict().items():
+            self.assertTrue(torch.equal(value, repeat.actor[0].actor.state_dict()[name]))
+        for name, value in mappo.critic.critic.state_dict().items():
+            self.assertTrue(torch.equal(value, repeat.critic.critic.state_dict()[name]))
         self.assertEqual(mappo.critic_output_dim, 6)
 
     def test_tiny_real_update_diagnostics_checkpoint_and_replay(self):
@@ -299,6 +476,8 @@ class CascadeMAPPOIntegrationTest(unittest.TestCase):
             for i, buffer in enumerate(runner.actor_buffer):
                 np.testing.assert_array_equal(buffer.factor, np.ones((4, 2, 1)))
                 self.assertEqual(runner.training_history[0]['actor'+str(i)+'_factor_max'], 1.)
+                self.assertEqual(runner.training_history[0]['actor'+str(i)+'_shared_actor'], 1.)
+                self.assertEqual(runner.training_history[0]['actor'+str(i)+'_optimizer_steps'], 2.)
             with trace.open(newline='') as stream:
                 rows = list(csv.DictReader(stream))
             self.assertEqual(len(rows), 4*2*5)
@@ -307,6 +486,7 @@ class CascadeMAPPOIntegrationTest(unittest.TestCase):
             rng = torch.get_rng_state().clone()
             policy = load_checkpoint(checkpoint)
             self.assertTrue(torch.equal(rng, torch.get_rng_state()))
+            self.assertEqual(len({id(a.actor) for a in policy.actors}), 1)
             replay = policy.replay([1965])
             reference = evaluate_policy(runner.actor, self.data, self.physical,
                 seed=1, episode=2, training_steps=8, gamma=self.args['algo']['gamma'],

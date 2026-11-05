@@ -84,7 +84,7 @@ def main(argv=None, *, experiment_runner=run_parallel_experiment,
     parser.add_argument('--checkpoint-interval',type=int,default=0,
                         help='Also save every N completed updates; 0 saves only the final policy; requires --save-checkpoints')
     parser.add_argument('--xld-diagnostics',action='store_true',
-                        help='Save daily XLD dispatch diagnostics for the final policy on fixed and held-out evaluation windows; requires --episode-log')
+                        help='Diagnose final-policy XLD violations and print grouped summaries; with --episode-log also save daily diagnostic CSVs')
     parser.add_argument('--skip-final-evaluation',action='store_true',help='Reserve evaluation years during tuning')
     parser.add_argument('--episode-log',type=Path,
                         help='New summary JSONL path; also creates compact <stem>_seedN_steps.csv files')
@@ -93,8 +93,6 @@ def main(argv=None, *, experiment_runner=run_parallel_experiment,
     if parser_extension is not None:
         parser_extension(parser)
     args = parser.parse_args(argv)
-    if args.xld_diagnostics and args.episode_log is None:
-        parser.error('--xld-diagnostics requires --episode-log')
     if (args.trajectory_diagnostics or args.save_checkpoints) and args.episode_log is None:
         parser.error('--trajectory-diagnostics and --save-checkpoints require --episode-log')
     if args.checkpoint_interval < 0:

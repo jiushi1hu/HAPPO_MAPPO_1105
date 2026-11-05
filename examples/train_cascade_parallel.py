@@ -10,10 +10,12 @@ from harl.envs.cascade_reservoir.periodic_evaluation import (
     PERIODIC_EVALUATION_DAYS, select_periodic_windows)
 from harl.envs.cascade_reservoir.training_metrics import log_episode, StepMetricsWriter, STEP_METRIC_FIELDS
 from harl.envs.cascade_reservoir.training_sampler import TrainingWindowSampler, validate_sampling_mode
-from harl.envs.cascade_reservoir.xld_diagnostics import XLDDispatchWriter, XLD_DIAGNOSTIC_FIELDS
+from harl.envs.cascade_reservoir.xld_diagnostics import (
+    XLDDispatchWriter, XLD_DIAGNOSTIC_FIELDS, aggregate_xld_summaries)
 from harl.envs.cascade_reservoir.trajectory_diagnostics import (
     TrajectoryDiagnosticsWriter, TRAJECTORY_DIAGNOSTIC_FIELDS)
 from harl.runners.cascade_reservoir_runner import CascadeReservoirRunner
+from harl.envs.cascade_reservoir.cascade_reservoir_env import actor_observation_features
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -69,6 +71,52 @@ def check_episode_inputs(data,physical,years,days,bins):
         raise ValueError('Episode observation dimensions do not match the configured layout')
 
 
+def _final_xld_summary(runners, evaluations, algorithm, skip_final_evaluation):
+    """Pool final-policy XLD counts, keeping training scenarios and held-out apart."""
+    final_rounds=[runner.periodic_evaluation_history[-1] for runner in runners]
+    fixed_summaries=[row.get('xld_dispatch_diagnostics') for row in final_rounds]
+    if (all(row.get('status')=='ok' for row in final_rounds) and
+            all(summary is not None for summary in fixed_summaries)):
+        fixed=aggregate_xld_summaries(fixed_summaries)
+    else:
+        fixed=dict(status='incomplete',expected_seed_count=len(runners),
+            complete_seed_count=sum(summary is not None for summary in fixed_summaries),
+            message='Final fixed-window diagnosis is incomplete; no pooled rate is reported.')
+    held_out=None
+    if not skip_final_evaluation:
+        if len(evaluations)!=len(runners) or any('xld_dispatch_diagnostics' not in row for row in evaluations):
+            held_out=dict(status='incomplete',
+                message='Held-out diagnosis is incomplete; no pooled rate is reported.')
+        else:
+            summaries=[dict(row['xld_dispatch_diagnostics'], status='ok',
+                            episode_horizon_days=row['episode_horizon_days']) for row in evaluations]
+            held_out=aggregate_xld_summaries(summaries)
+    result=dict(fixed_training_windows=fixed,held_out=held_out)
+    labels=dict(actor_missed_feasible_discrete='A meeting discrete command existed but was not selected',
+                discrete_grid_gap='Only a continuous command could meet the requirement (grid gap)',
+                same_state_continuous_unattainable='No continuous command could meet it in the reached state')
+    for scope, summary in result.items():
+        if summary is None:
+            continue
+        if summary['status']!='ok':
+            print('XLD {} | {}: {}'.format(algorithm.upper(),scope,summary['message']),flush=True)
+            continue
+        rate=summary['violation_rate']
+        print('XLD {} | {} | violations={}/{} ({})'.format(algorithm.upper(),scope,
+            summary['violation_count'],summary['active_days'],
+            'N/A' if rate is None else '{:.2%}'.format(rate)),flush=True)
+        for group,label in labels.items():
+            fraction=summary['group_fractions_among_violations'][group]
+            print('  {}: {} ({} of XLD violation days)'.format(label,summary['group_counts'][group],
+                'N/A' if fraction is None else '{:.2%}'.format(fraction)),flush=True)
+        limits={key:value for key,value in summary['classification_counts'].items()
+                if key.startswith('same_state_')}
+        print('  Current-state limit categories: '+json.dumps(limits,sort_keys=True),flush=True)
+        print('  Scope: same starting state and other reservoirs\' commands; '
+              'this does not assess future water value or global inevitability.',flush=True)
+    return result
+
+
 def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReservoirRunner,
                             algorithm_name=None):
     if algorithm_name is not None:
@@ -90,8 +138,6 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
     xld_enabled=config['experiment'].get('xld_diagnostics',False)
     if not isinstance(xld_enabled,bool):
         raise ValueError('xld_diagnostics must be a boolean')
-    if xld_enabled and args.episode_log is None:
-        raise ValueError('XLD diagnostics require --episode-log')
     if xld_enabled and data.service_requirements is None:
         raise ValueError('XLD diagnostics require loaded service requirements')
     trajectory_enabled=config['experiment'].get('trajectory_diagnostics',False)
@@ -128,13 +174,24 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
             any(not isinstance(key,str) or not isinstance(value,str) or not value
                 for key,value in data.hashes.items())):
         raise ValueError('Comparison context requires nonempty input data_hashes')
+    shared_algo=dict(config['algo'])
+    # Parameter sharing is the explicit architectural difference being tested.
+    # Keep every other optimization, physical and budget setting comparable.
+    shared_algo.pop('share_param',None)
+    sharing=bool(getattr(runner_cls,'share_actor_parameters',False))
+    raw_observation_dim=len(actor_observation_features(physical.get('use_daily_level_limits',False)))
+    actor_architecture=dict(parameter_sharing=sharing,network_count=1 if sharing else 5,
+        optimizer_count=1 if sharing else 5,raw_observation_dim=raw_observation_dim,
+        network_observation_dim=raw_observation_dim+(5 if sharing else 0),
+        identity_features='one_hot_reservoir_id' if sharing else 'implicit_in_separate_actor',
+        critic_output_dim=6)
     comparison_context=json.loads(json.dumps(dict(shared_settings=dict(
         episode_horizon_days=days,parallel_environments=count,episodes_per_seed=episodes,
         gamma=config['algo']['gamma'],action_bins=bins,seeds=config['experiment']['seeds'],
         evaluation_interval=eval_interval,
         training_years=list(data.training_years),evaluation_source_years=evaluation_years,
         window_sampling=sampling_mode,physical_config=physical,periodic_windows=periodic_windows,
-        device=config['device'],train=config['train'],model=config['model'],algo=config['algo']),
+        device=config['device'],train=config['train'],model=config['model'],algo=shared_algo),
         data_hashes=data.hashes),sort_keys=True,allow_nan=False))
     metadata=dict(record_type='run_configuration',collection_mode='five_year_parallel',
         learning_reward_architecture=dict(alpha=0.5,
@@ -184,7 +241,10 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
         xld_dispatch_diagnostics=dict(enabled=xld_enabled, reservoir='XLD',
             scope='every XLD day in the final scheduled periodic evaluation and final held-out evaluation only',
             training_rows_written=False, files={str(seed):str(path.resolve()) for seed,path in xld_paths.items()},
+            daily_csv_enabled=bool(xld_paths), console_summary_enabled=xld_enabled,
             expected_rows_per_seed=(3*PERIODIC_EVALUATION_DAYS+(0 if args.skip_final_evaluation else days))
+                if xld_paths else 0,
+            expected_observed_days_per_seed=(3*PERIODIC_EVALUATION_DAYS+(0 if args.skip_final_evaluation else days))
                 if xld_enabled else 0,
             columns=list(XLD_DIAGNOSTIC_FIELDS),
             counterfactual='same current state and action-date bounds; all other reservoir actions held fixed',
@@ -212,11 +272,13 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
         data_hashes=data.hashes,
         source_code_hashes={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in sources})
     metadata['comparison_context']=comparison_context
+    metadata['actor_architecture']=actor_architecture
     if algorithm_name is not None:
         metadata['algorithm']=algorithm_name
     if algorithm_name=='mappo':
         metadata['learning_reward_architecture']['update_interpretation']=(
-            'individual-objective independent clipped PPO surrogates with a centralized critic; '
+            'one shared actor trained on pooled reservoir samples and individual mixed-return '
+            'clipped PPO surrogates with a centralized critic; '
             'system reward remains an accounting metric rather than the actor training target')
     print(json.dumps(metadata,indent=2,allow_nan=False),flush=True)
     if args.check_data_only:
@@ -250,6 +312,8 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
             runner.run(episodes,interval)
             runners.append(runner)
         evaluations=[] if args.skip_final_evaluation else [row for runner in runners for row in runner.final_evaluation()]
+        xld_summary=(_final_xld_summary(runners,evaluations,algorithm_name or 'happo',
+            args.skip_final_evaluation) if xld_enabled else None)
         result=dict(record_type='run_complete',seeds=config['experiment']['seeds'],
             episode_horizon_days=days,parallel_environments=count,episodes_per_seed=episodes,
             training_steps_per_seed=[runner.training_steps for runner in runners],
@@ -262,13 +326,18 @@ def run_parallel_experiment(data,physical,config,args,*,runner_cls=CascadeReserv
             final_policy_metadata=[runner.evaluation_policy_metadata() for runner in runners],
             policy_checkpoints=[checkpoint for runner in runners for checkpoint in runner.checkpoint_history],
             evaluation_skipped=bool(args.skip_final_evaluation),evaluations=evaluations)
+        if xld_summary is not None:
+            result['xld_dispatch_summary']=xld_summary
         log_episode(result,stream)
         payload=json.loads(json.dumps(dict(episode_horizon_days=days,gamma=config['algo']['gamma'],
             seeds=config['experiment']['seeds'],updates_per_seed=episodes//count,
             periodic_evaluation=dict(windows=periodic_windows),
             histories=[runner.training_history for runner in runners],
             evaluation_histories=[runner.periodic_evaluation_history for runner in runners],
-            algorithm=algorithm_name or 'happo',comparison_context=comparison_context),allow_nan=False))
+            algorithm=algorithm_name or 'happo',comparison_context=comparison_context,
+            actor_architecture=actor_architecture),allow_nan=False))
+        if xld_summary is not None:
+            payload['xld_dispatch_summary']=xld_summary
         if not args.no_plot:
             plot_command=[args.plot_python,str(ROOT/'examples/plot_cascade_parallel.py')]
             if figure_paths:

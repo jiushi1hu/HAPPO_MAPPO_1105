@@ -1,5 +1,6 @@
 """Three matched cascade figures, with separate HAPPO and MAPPO seed means."""
 import argparse
+import copy
 import json
 from pathlib import Path
 import sys
@@ -25,10 +26,19 @@ def _canonical(value):
     return json.dumps(value, sort_keys=True, allow_nan=False, separators=(',', ':'))
 
 
+def _normalized_context(context):
+    """Sharing is the intended architecture difference, not a task difference."""
+    result = copy.deepcopy(context)
+    settings = result.get('shared_settings', {})
+    if isinstance(settings, dict) and isinstance(settings.get('algo'), dict):
+        settings['algo'].pop('share_param', None)
+    return result
+
+
 def context_from_configuration(metadata):
     """Extract matched settings without output paths or algorithm labels."""
     if 'comparison_context' in metadata:
-        return metadata['comparison_context']
+        return _normalized_context(metadata['comparison_context'])
     config = metadata['config']
     experiment = config['experiment']
     shared = dict(
@@ -46,7 +56,7 @@ def context_from_configuration(metadata):
     for key in ('device', 'train', 'model', 'algo'):
         if key in config:
             shared[key] = config[key]
-    return dict(shared_settings=shared, data_hashes=metadata['data_hashes'])
+    return _normalized_context(dict(shared_settings=shared, data_hashes=metadata['data_hashes']))
 
 
 def _context(payload):
@@ -103,7 +113,36 @@ def _context(payload):
         raise ValueError('Plot seeds must be a nonempty subset of configured comparison seeds')
     if payload.get('configured_seeds', settings['seeds']) != settings['seeds']:
         raise ValueError('Configured plot seeds disagree with comparison_context')
-    return context, expected_signature
+    return _normalized_context(context), expected_signature
+
+
+def _validate_architecture(algorithm, run):
+    """Accept legacy independent actors or explicit ID-conditioned shared MAPPO."""
+    settings = run['comparison_context']['shared_settings']
+    requested = settings.get('algo', {}).get('share_param')
+    if requested is not None and not isinstance(requested, bool):
+        raise ValueError('Actor share_param must be a boolean')
+    if algorithm == 'happo' and requested:
+        raise ValueError('HAPPO comparison requires independent actor parameters')
+    architecture = run.get('actor_architecture')
+    if architecture is None:
+        if requested:
+            raise ValueError('Shared MAPPO requires explicit actor_architecture metadata')
+        return  # Older labeled MAPPO and HAPPO logs used five independent actors.
+    if not isinstance(architecture, dict):
+        raise ValueError('actor_architecture must be a mapping')
+    shared = architecture.get('parameter_sharing')
+    if not isinstance(shared, bool) or (algorithm == 'happo' and shared):
+        raise ValueError('Only MAPPO may use an ID-conditioned shared actor')
+    if requested is not None and requested != shared:
+        raise ValueError('Actor architecture disagrees with share_param')
+    raw_dim = 15 if settings['physical_config'].get('use_daily_level_limits', True) else 11
+    expected = dict(network_count=1 if shared else 5, optimizer_count=1 if shared else 5,
+        raw_observation_dim=raw_dim, network_observation_dim=raw_dim+5 if shared else raw_dim,
+        identity_features='one_hot_reservoir_id' if shared else 'implicit_in_separate_actor',
+        critic_output_dim=6)
+    if any(architecture.get(key) != value for key, value in expected.items()):
+        raise ValueError('Actor architecture dimensions/counts do not match the cascade observations')
 
 
 def validate_comparison(payload):
@@ -127,6 +166,7 @@ def validate_comparison(payload):
         if 'algorithm' in run and str(run['algorithm']).lower() != algorithm:
             raise ValueError('Algorithm label disagrees with its plotting payload')
         context, signature = _context(run)
+        _validate_architecture(algorithm, run)
         identity = _canonical(context)
         if reference is not None and identity != reference:
             raise ValueError('Comparison settings or input data_hashes differ between algorithms')
@@ -178,6 +218,8 @@ def load_comparison(happo_log=None, mappo_log=None):
         if recorded is not None and str(recorded).lower() != algorithm:
             raise ValueError('The supplied '+algorithm+' log records a different algorithm')
         run['comparison_context'] = context_from_configuration(metadata)
+        if 'actor_architecture' in metadata:
+            run['actor_architecture'] = copy.deepcopy(metadata['actor_architecture'])
         runs.append(dict(algorithm=algorithm, payload=run))
     return validate_comparison(dict(schema=SCHEMA, runs=runs))
 

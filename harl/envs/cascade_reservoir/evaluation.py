@@ -67,13 +67,16 @@ def _attach_evaluation_progress(error, env, rewards, energy, xld_metrics=None):
 def evaluate_policy(actors, data, physical_config, seed, episode, training_steps, *,
                     gamma, source_years, episode_days=DEFAULT_EPISODE_DAYS,
                     deterministic=True, diagnostics=False, step_log=None,
-                    xld_log=None, evaluation_round=None, window_id=None):
+                    xld_log=None, evaluation_round=None, window_id=None,
+                    xld_diagnostics=False):
     """Evaluate one complete multi-year sequence without collecting training samples.
 
     Evaluation years are used only after training. A training-only diagnostic
     may explicitly supply training years; mixed split sequences are rejected.
     Source dates and daily level limits are preserved at representative-year joins.
     """
+    if not isinstance(xld_diagnostics, bool):
+        raise ValueError('xld_diagnostics must be a boolean')
     gamma = validate_discount_factor(gamma)
     if len(actors) != len(IDS):
         raise ValueError('Evaluation requires one actor per reservoir')
@@ -92,7 +95,7 @@ def evaluate_policy(actors, data, physical_config, seed, episode, training_steps
     limit_metrics = DailyLimitMetrics(env)
     reward_metrics = EpisodeRewardMetrics(gamma)
     xld_metrics = None
-    if xld_log is not None:
+    if xld_diagnostics or xld_log is not None:
         from harl.envs.cascade_reservoir.xld_diagnostics import XLDDispatchDiagnostics
         xld_metrics = XLDDispatchDiagnostics(env, xld_log, seed=seed,
             evaluation_round=episode if evaluation_round is None else evaluation_round,

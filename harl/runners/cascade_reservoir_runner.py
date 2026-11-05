@@ -50,6 +50,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
 
     actor_class = HAPPO
     algorithm_name = 'happo'
+    share_actor_parameters = False
 
     def __init__(self, data, physical_config, algo_args, seed, episode_log=None, step_log=None,
                  periodic_windows=None, training_sampler=None, xld_log=None,
@@ -71,7 +72,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         for key in ('use_policy_active_masks', 'mask_inactive_factors'):
             if not args['algo'].get(key, False):
                 raise ValueError('Forced cascade actions require '+key)
-        if args['algo']['share_param']:
+        if args['algo']['share_param'] and not self.share_actor_parameters:
             raise ValueError('The cascade requires independent actors')
         for key in ('actor_num_mini_batch', 'critic_num_mini_batch'):
             count = positive_integer(args['algo'][key], key)
@@ -112,8 +113,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
             self.windows[self.training_window_starts[0]], self.length, self.action_bins)]
         env = self.envs[0]
         network_args = {**args['model'], **args['algo'], 'critic_output_dim': self.critic_output_dim}
-        self.actor = [self.actor_class(network_args, env.observation_space[i], env.action_space[i], self.device)
-                      for i in range(self.num_agents)]
+        self.actor = self._create_actors(network_args, env)
         self.critic = VCritic(network_args, env.share_observation_space[0], self.device)
         self._allocate_buffers()
         self.training_steps = self.update_count = self.collected_training_steps = 0
@@ -128,6 +128,10 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         self.episode_log = episode_log
         self.step_log = step_log
         self.xld_log = xld_log
+        xld_enabled = args['experiment'].get('xld_diagnostics', False)
+        if not isinstance(xld_enabled, bool):
+            raise ValueError('xld_diagnostics must be a boolean')
+        self.xld_diagnostics_enabled = xld_enabled or xld_log is not None
         self.trajectory_log = trajectory_log
         self.checkpoint_dir = None if checkpoint_dir is None else Path(checkpoint_dir)
         interval = args['experiment'].get('checkpoint_interval', 0)
@@ -141,6 +145,11 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         self.joint_kl_info = None
         self.parallel_envs = None
         self.worker_pids = []
+
+    def _create_actors(self, network_args, env):
+        """Keep the original five independent HAPPO networks by default."""
+        return [self.actor_class(network_args, env.observation_space[i],
+                env.action_space[i], self.device) for i in range(self.num_agents)]
 
     def _make_training_sampler(self, episodes):
         return TrainingWindowSampler(self.data, self.length, episodes, self.n_envs,
@@ -393,7 +402,8 @@ class CascadeReservoirRunner(OnPolicyHARunner):
         record = evaluate_periodic_policy(self.actor, self.data, self.physical_config,
             seed=self.seed, evaluation_round=self.update_count, training_steps=self.training_steps,
             windows=self.periodic_windows, gamma=self.algo_args['algo']['gamma'],
-            xld_log=self.xld_log if self.update_count == self.training_sampler.updates else None)
+            xld_log=self.xld_log if self.update_count == self.training_sampler.updates else None,
+            xld_diagnostics=self.xld_diagnostics_enabled and self.update_count == self.training_sampler.updates)
         self.periodic_evaluation_history.append(record)
         log_episode(record, self.episode_log)
         return record
@@ -414,6 +424,7 @@ class CascadeReservoirRunner(OnPolicyHARunner):
                     episode=self.completed_episodes,training_steps=self.training_steps,diagnostics=True,
                     gamma=self.algo_args['algo']['gamma'],source_years=years,episode_days=self.length,
                     step_log=self.step_log, xld_log=self.xld_log,
+                    xld_diagnostics=self.xld_diagnostics_enabled,
                     evaluation_round=self.update_count, window_id='held_out_sequence')
         except InfeasibleCascade as exc:
             progress = getattr(exc, 'evaluation_progress', {})

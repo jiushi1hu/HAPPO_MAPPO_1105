@@ -20,14 +20,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from harl.envs.cascade_reservoir.checkpoint import (
-    REPLAY_TRACE_FIELDS, ReplayTraceWriter, load_checkpoint, save_checkpoint)
+    REPLAY_TRACE_FIELDS, ReplayTraceWriter, load_checkpoint, save_checkpoint, _digest, _state_hash)
 from harl.envs.cascade_reservoir.data_loader import CascadeData, IDS
 from harl.envs.cascade_reservoir.evaluation import evaluate_policy
 from harl.envs.cascade_reservoir.periodic_evaluation import select_periodic_windows
 from harl.runners.cascade_reservoir_runner import CascadeReservoirRunner
+from harl.runners.cascade_mappo_runner import CascadeMAPPORunner
 
 
 class CascadeCheckpointTest(unittest.TestCase):
+    runner_class = CascadeReservoirRunner
     @classmethod
     def setUpClass(cls):
         with (ROOT/'harl/configs/envs_cfgs/cascade_reservoir.yaml').open() as stream:
@@ -42,7 +44,7 @@ class CascadeCheckpointTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name)/'update_000001.pt'
-        self.runner = CascadeReservoirRunner(self.data, self.physical, self.args, 1,
+        self.runner = self.runner_class(self.data, self.physical, self.args, 1,
             periodic_windows=select_periodic_windows(self.data, episode_days=8))
         self.addCleanup(self.runner.close)
         # Persistence tests need a completed-policy marker; the separate workflow
@@ -79,6 +81,20 @@ class CascadeCheckpointTest(unittest.TestCase):
             save_checkpoint(self.runner, self.path)
         self.assertEqual(content, self.path.read_bytes())
         self.assertNotIn('optimizer', self.payload())
+        if not self.runner.algo_args['algo'].get('share_param', False):
+            self.assertEqual(len(self.payload()['actors']), 5)
+            self.assertNotIn('actor_parameter_sharing', self.payload()['metadata'])
+
+    def test_legacy_independent_mappo_format_remains_supported(self):
+        if self.runner.algo_args['algo'].get('share_param', False):
+            self.skipTest('This case exercises the older independent-actor format')
+        self.runner.algorithm_name = 'mappo'
+        save_checkpoint(self.runner, self.path)
+        self.assertEqual(len(self.payload()['actors']), 5)
+        policy = load_checkpoint(self.path)
+        self.assertEqual(policy.metadata['algorithm_name'], 'mappo')
+        self.assertEqual(len({id(actor.actor) for actor in policy.actors}), 5)
+        self.assertTrue(policy.replay([1965])['feasible'])
 
     def test_replay_matches_existing_evaluator_and_csv_returns(self):
         save_checkpoint(self.runner, self.path)
@@ -192,6 +208,76 @@ class CascadeCheckpointTest(unittest.TestCase):
         row['value'] = float('inf')
         with self.assertRaises(ValueError):
             writer.write(row)
+
+
+class SharedCascadeCheckpointTest(CascadeCheckpointTest):
+    runner_class = CascadeMAPPORunner
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.args = copy.deepcopy(cls.args)
+        cls.args['algo']['share_param'] = True
+
+    def test_one_state_one_frozen_network_and_five_identity_views(self):
+        save_checkpoint(self.runner, self.path)
+        stored = self.payload()
+        self.assertEqual(len(stored['actors']), 1)
+        self.assertEqual(len(stored['metadata']['model_hashes']['actors']), 1)
+        self.assertTrue(stored['metadata']['actor_parameter_sharing'])
+        self.assertEqual(stored['metadata']['agent_ids'], list(range(5)))
+        self.assertEqual(stored['metadata']['raw_actor_observation_dim'], 15)
+        self.assertEqual(stored['metadata']['actor_observation_dim'], 20)
+        before = torch.get_rng_state().clone()
+        numpy_before, random_before = np.random.get_state(), random.getstate()
+        frozen = load_checkpoint(self.path)
+        self.assertTrue(torch.equal(before, torch.get_rng_state()))
+        self.assertEqual(random_before, random.getstate())
+        self.assertTrue(np.array_equal(numpy_before[1], np.random.get_state()[1]))
+        self.assertEqual(len({id(actor.actor) for actor in frozen.actors}), 1)
+        self.assertEqual(len({id(actor.core) for actor in frozen.actors}), 1)
+        self.assertEqual([actor.agent_id for actor in frozen.actors], list(range(5)))
+        self.assertFalse(hasattr(frozen.actors[0].core, 'actor_optimizer'))
+        first_linear = next(module for module in frozen.actors[0].actor.modules()
+                            if isinstance(module, torch.nn.Linear))
+        self.assertEqual(first_linear.in_features, 20)
+        observation = self.runner.envs[0].actor_observations()[0:1]
+        for original, view in zip(self.runner.actor, frozen.actors):
+            with torch.no_grad():
+                expected = original.evaluate_actions(observation, np.zeros((1, 1), dtype=int))[2]
+                actual = view.evaluate_actions(observation, np.zeros((1, 1), dtype=int))[2]
+            np.testing.assert_array_equal(expected.probs.cpu().numpy(), actual.probs.cpu().numpy())
+
+    def test_shared_architecture_metadata_is_validated(self):
+        save_checkpoint(self.runner, self.path)
+        original = self.payload()
+        for change in ('ids', 'input', 'states'):
+            with self.subTest(change=change):
+                stored = copy.deepcopy(original)
+                if change == 'ids':
+                    stored['metadata']['agent_ids'] = [0, 0, 2, 3, 4]
+                elif change == 'input':
+                    stored['metadata']['actor_observation_dim'] = 15
+                else:
+                    stored['actors'] = stored['actors']*5
+                    stored['metadata']['model_hashes']['actors'] *= 5
+                stored['metadata_sha256'] = _digest(stored['metadata'])
+                torch.save(stored, self.path)
+                with self.assertRaises(ValueError):
+                    load_checkpoint(self.path)
+
+    def test_shared_model_failure_restores_rng_state(self):
+        save_checkpoint(self.runner, self.path)
+        stored = self.payload()
+        name = next(iter(stored['actors'][0]))
+        stored['actors'][0][name] = stored['actors'][0][name][:-1].clone()
+        stored['metadata']['model_hashes']['actors'] = [_state_hash(stored['actors'][0])]
+        stored['metadata_sha256'] = _digest(stored['metadata'])
+        torch.save(stored, self.path)
+        before = torch.get_rng_state().clone()
+        with self.assertRaisesRegex(ValueError, 'Malformed'):
+            load_checkpoint(self.path)
+        self.assertTrue(torch.equal(before, torch.get_rng_state()))
 
 
 if __name__ == '__main__':

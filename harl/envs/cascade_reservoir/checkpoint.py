@@ -112,7 +112,25 @@ def save_checkpoint(runner, path):
         raise ValueError('A checkpoint requires a completed policy update')
     if len(runner.actor) != len(IDS) or runner.critic_output_dim != len(IDS)+1:
         raise ValueError('Checkpoint requires five actors and a six-output critic')
-    actor_states = [_state_copy(actor.actor) for actor in runner.actor]
+    shared_actor = runner.algo_args['algo'].get('share_param', False)
+    if not isinstance(shared_actor, bool):
+        raise ValueError('Actor parameter sharing must be a boolean')
+    if shared_actor:
+        if getattr(runner, 'algorithm_name', 'happo') != 'mappo':
+            raise ValueError('Only MAPPO checkpoints support a shared actor')
+        first = runner.actor[0]
+        core = getattr(first, 'core', None)
+        if (core is None or any(actor.actor is not first.actor for actor in runner.actor) or
+                [getattr(actor, 'agent_id', None) for actor in runner.actor] != list(range(len(IDS))) or
+                any(getattr(actor, 'core', None) is not core for actor in runner.actor)):
+            raise ValueError('Shared MAPPO checkpoint requires five ordered views of one actor core')
+        raw_dim = int(runner.envs[0].observation_space[0].shape[0])
+        actor_dim = raw_dim+len(IDS)
+        if tuple(core.obs_space.shape) != (actor_dim,):
+            raise ValueError('Shared actor input must append five agent identity features')
+        actor_states = [_state_copy(first.actor)]
+    else:
+        actor_states = [_state_copy(actor.actor) for actor in runner.actor]
     critic_state = _state_copy(runner.critic.critic)
     normalizer_state = (None if runner.value_normalizer is None else
                         _state_copy(runner.value_normalizer))
@@ -139,6 +157,9 @@ def save_checkpoint(runner, path):
     # the same inference network but records its distinct training provenance.
     if getattr(runner, 'algorithm_name', 'happo') == 'mappo':
         metadata['algorithm_name'] = 'mappo'
+    if shared_actor:
+        metadata.update(actor_parameter_sharing=True, agent_ids=list(range(len(IDS))),
+                        actor_observation_dim=actor_dim, raw_actor_observation_dim=raw_dim)
     payload = dict(format=CHECKPOINT_FORMAT, version=CHECKPOINT_VERSION,
         metadata=metadata, metadata_sha256=_digest(metadata), actors=actor_states,
         critic=critic_state, value_normalizer=normalizer_state)
@@ -176,6 +197,11 @@ class _FrozenActor:
     def act(self, obs, available_actions=None, deterministic=True):
         return self.actor(obs, available_actions, deterministic)[0]
 
+    def evaluate_actions(self, obs, action, available_actions=None, active_masks=None,
+                         return_entropy_per_sample=False):
+        return self.actor.evaluate_actions(obs, action, available_actions, active_masks,
+                                          return_entropy_per_sample=return_entropy_per_sample)
+
 
 def load_checkpoint(path, data_root=None):
     """Validate source/data/settings and reconstruct frozen CPU inference models.
@@ -201,7 +227,20 @@ def load_checkpoint(path, data_root=None):
             raise ValueError('Checkpoint implementation source/config hash mismatch')
         if metadata['reservoir_ids'] != list(IDS) or metadata['critic_output_dim'] != 6:
             raise ValueError('Checkpoint requires five actors and six critic outputs')
-        if len(payload['actors']) != 5:
+        shared_actor = metadata.get('actor_parameter_sharing', False)
+        if not isinstance(shared_actor, bool):
+            raise ValueError('Checkpoint actor parameter sharing must be a boolean')
+        args = settings['algorithm']
+        configured_sharing = args['algo'].get('share_param', False)
+        if not isinstance(configured_sharing, bool) or configured_sharing != shared_actor:
+            raise ValueError('Checkpoint actor-sharing architecture disagrees with its settings')
+        if shared_actor:
+            if (metadata.get('algorithm_name') != 'mappo' or
+                    metadata.get('agent_ids') != list(range(len(IDS)))):
+                raise ValueError('Shared checkpoint requires MAPPO and the five ordered agent IDs')
+            if len(payload['actors']) != 1:
+                raise ValueError('Shared checkpoint requires one actor state')
+        elif len(payload['actors']) != 5:
             raise ValueError('Checkpoint requires five actor states')
         hashes = metadata['model_hashes']
         if (hashes['actors'] != [_state_hash(s) for s in payload['actors']] or
@@ -210,7 +249,6 @@ def load_checkpoint(path, data_root=None):
                                                _state_hash(payload['value_normalizer']))):
             raise ValueError('Checkpoint model state hash mismatch')
         days = positive_integer(metadata['episode_horizon_days'], 'saved episode horizon')
-        args = settings['algorithm']
         if (args['train']['episode_length'] != days or
                 args['model']['action_bins'] != metadata['action_bins'] or
                 bool(args['train']['use_valuenorm']) != (payload['value_normalizer'] is not None)):
@@ -230,12 +268,27 @@ def load_checkpoint(path, data_root=None):
             raise ValueError('Checkpoint dataset/split provenance mismatch')
         if env.observation_metadata() != metadata['observation']:
             raise ValueError('Checkpoint observation layout mismatch')
+        if shared_actor:
+            raw_dim = int(env.observation_space[0].shape[0])
+            actor_dim = raw_dim+len(IDS)
+            if (metadata.get('raw_actor_observation_dim') != raw_dim or
+                    metadata.get('actor_observation_dim') != actor_dim):
+                raise ValueError('Shared checkpoint actor observation dimensions disagree with agent IDs')
         network_args = {**args['model'], **args['algo'], 'critic_output_dim': 6}
         # Initializers consume RNG, so reconstruction must restore its caller's
         # state even on a malformed model state/load failure.
         with torch.random.fork_rng(devices=[]):
-            actors = [_FrozenActor(network_args, env.observation_space[i], env.action_space[i], state)
-                      for i, state in enumerate(payload['actors'])]
+            if shared_actor:
+                from gym.spaces import Box
+                from harl.algorithms.actors.shared_mappo import SharedMAPPOAgent
+                core = _FrozenActor(network_args,
+                    Box(-np.inf, np.inf, (actor_dim,), dtype=np.float32),
+                    env.action_space[0], payload['actors'][0])
+                core.obs_space = Box(-np.inf, np.inf, (actor_dim,), dtype=np.float32)
+                actors = [SharedMAPPOAgent(core, i, num_agents=len(IDS)) for i in range(len(IDS))]
+            else:
+                actors = [_FrozenActor(network_args, env.observation_space[i], env.action_space[i], state)
+                          for i, state in enumerate(payload['actors'])]
             critic = VNet(network_args, env.share_observation_space[0])
             critic.load_state_dict(payload['critic'], strict=True)
             critic.requires_grad_(False).eval()
@@ -323,8 +376,8 @@ class FrozenCascadePolicy:
             observations, values = env.actor_observations(), self._values(env.state())
             policy_actions, commands, distributions = [], [], []
             for i, actor in enumerate(self.actors):
-                features = actor.actor.base(torch.as_tensor(observations[i:i+1], dtype=torch.float32))
-                distribution = actor.actor.act.action_out(features)
+                _, _, distribution = actor.evaluate_actions(
+                    observations[i:i+1], np.zeros((1, 1), dtype=np.int64))
                 action = int(distribution.mode().item())
                 policy_actions.append(action)
                 commands.append(int(overrides.get((step, IDS[i]), action)))

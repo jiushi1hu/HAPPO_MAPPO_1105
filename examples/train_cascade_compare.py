@@ -55,8 +55,8 @@ def comparison_preflight(args, config):
     algorithms = validate_algorithms(args.algorithms)
     if 'mappo' in algorithms and config['algo'].get('joint_target_kl') is not None:
         raise ValueError('MAPPO comparison does not support joint_target_kl; use --no-joint-kl-limit')
-    if config['algo'].get('share_param', False):
-        raise ValueError('Matched cascade comparison requires five independent actors')
+    if 'happo' in algorithms and config['algo'].get('share_param', False):
+        raise ValueError('HAPPO retains five independent actors; its share_param must be false')
     paths = [] if args.episode_log is None else [Path(args.episode_log)]
     seeds = config['experiment']['seeds']
     for algorithm in algorithms:
@@ -90,8 +90,11 @@ def run_comparison(data, physical, config, args):
         options.no_plot = True  # Only the joint figures are drawn at the end.
         print('Running {} with the shared cascade configuration ...'.format(
               algorithm.upper()), flush=True)
+        effective_config = copy.deepcopy(config)
+        if algorithm == 'mappo':
+            effective_config['algo']['share_param'] = True
         payload = run_parallel_experiment(data, copy.deepcopy(physical),
-            copy.deepcopy(config), options, runner_cls=RUNNERS[algorithm],
+            effective_config, options, runner_cls=RUNNERS[algorithm],
             algorithm_name=algorithm)
         if payload is not None:
             runs.append(dict(algorithm=algorithm, payload=payload))

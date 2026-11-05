@@ -1,4 +1,4 @@
-"""Independent-actor MAPPO for the cascade scheduling task.
+"""MAPPO for the cascade scheduling task.
 
 The PPO loss follows HARL MAPPO, adapted to this repository's feed-forward
 interfaces, individual mixed rewards, calendar weights and forced-action masks.
@@ -16,7 +16,7 @@ from harl.algorithms.actors.happo import validate_policy_optimization, validate_
 
 class MAPPO(OnPolicyBase):
     def __init__(self, args, obs_space, act_space, device=torch.device("cpu")):
-        """Initialize independent-actor MAPPO.
+        """Initialize a MAPPO policy (independent or shared across agent views).
         Args:
             args: (dict) arguments.
             obs_space: (gym.spaces or list) observation space.
@@ -27,8 +27,6 @@ class MAPPO(OnPolicyBase):
         rollback = validate_kl_rollback(args.get('kl_rollback', False), target_kl)
         if args.get('joint_target_kl') is not None:
             raise ValueError('MAPPO does not support joint_target_kl; use an optional local target_kl')
-        if args.get('share_param', False):
-            raise ValueError('Cascade MAPPO requires independent actors; share_param must be false')
         if target_kl is not None and act_space.__class__.__name__ != "Discrete":
             raise ValueError("Exact categorical target_kl requires a Discrete action space")
         super(MAPPO, self).__init__(args, obs_space, act_space, device)
@@ -242,7 +240,25 @@ class MAPPO(OnPolicyBase):
 
         return policy_loss, dist_entropy, actor_grad_norm, imp_weights
 
-    def train(self, actor_buffer, advantages, state_type, diagnostics=False):
+    def share_param_train(self, actor_buffers, own_advantages, num_agents, state_type,
+                          diagnostics=False):
+        """Update one shared policy on a joint batch of agent-specific targets.
+
+        The five physical buffers remain unchanged. Their own mixed-return
+        advantages, masks and old probabilities retain the same row alignment
+        after identity features are appended and agent lanes are concatenated.
+        There is one optimizer step per joint minibatch and epoch.
+        """
+        from harl.algorithms.actors.shared_mappo import joint_shared_actor_batch
+        if state_type != 'EP':
+            raise ValueError('Cascade MAPPO requires a centralized EP critic state')
+        buffer, advantages = joint_shared_actor_batch(
+            self, actor_buffers, own_advantages, num_agents)
+        return self.train(buffer, advantages, state_type, diagnostics=diagnostics,
+                          advantages_normalized=True)
+
+    def train(self, actor_buffer, advantages, state_type, diagnostics=False,
+              advantages_normalized=False):
         """Perform a training update using minibatch GD.
         Args:
             actor_buffer: (OnPolicyActorBuffer) buffer containing training data related to actor.
@@ -250,6 +266,8 @@ class MAPPO(OnPolicyBase):
             state_type: (str) type of state.
             diagnostics: (bool) measure fixed-batch objective endpoints without
                 changing optimizer steps or random states.
+            advantages_normalized: internal shared-batch flag; each reservoir's
+                own channel has already been normalized before concatenation.
         Returns:
             train_info: (dict) contains information regarding training update (e.g. loss, grad norms, etc).
                 ratio is the mean sampled-action ratio on positive-objective
@@ -280,7 +298,8 @@ class MAPPO(OnPolicyBase):
                 train_info.update(self.surrogate_changes(zero, zero))
             return dict(train_info, **budget_info)
 
-        if not self.args.get("normalize_shared_advantages", False):
+        if (not advantages_normalized and
+                not self.args.get("normalize_shared_advantages", False)):
             advantages_copy = advantages.copy()
             advantages_copy[actor_buffer.active_masks[:-1] == 0.0] = np.nan
             mean_advantages = np.nanmean(advantages_copy)

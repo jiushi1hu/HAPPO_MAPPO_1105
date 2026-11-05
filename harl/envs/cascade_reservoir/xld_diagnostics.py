@@ -428,3 +428,161 @@ class XLDDispatchDiagnostics:
                 'Reference-head power is an accounting comparison, not an executed or guaranteed-feasible higher-head state.',
             row_scope='one row per executed XLD evaluation day; detailed alternative-action search only on violating days',
             numeric_tolerance='same requirement-relative 1e-10 tolerance as OperationReward; CSV formatting only uses 10 significant digits')
+
+_XLD_CONTINUOUS_LIMIT_CLASSES = (
+    'same_state_capacity_limit', 'same_state_water_limit',
+    'same_state_dispatch_limit', 'same_state_head_limit',
+)
+_XLD_AGGREGATE_GROUPS = {
+    'actor_missed_feasible_discrete': ('same_day_policy_alternative',),
+    'discrete_grid_gap': ('discrete_grid_gap',),
+    'same_state_continuous_unattainable': _XLD_CONTINUOUS_LIMIT_CLASSES,
+}
+_XLD_AGGREGATE_SCHEMA = 'xld_dispatch_aggregate_v1'
+
+
+def _summary_fraction(value, expected, name):
+    if expected is None:
+        if value is not None:
+            raise ValueError(name+' must be null when its denominator is zero')
+    elif not np.isclose(_number(value, name), expected, rtol=1e-12, atol=1e-12):
+        raise ValueError(name+' disagrees with its counts')
+
+
+def _summary_identity_list(values, name, *, text=False):
+    if not isinstance(values, (list, tuple)) or not values:
+        raise ValueError(name+' must be a nonempty list')
+    if text:
+        if any(not isinstance(value, str) or not value for value in values):
+            raise ValueError(name+' must contain nonempty text')
+        return list(values)
+    return [_integer(value, name) for value in values]
+
+
+def aggregate_xld_summaries(summaries):
+    """Pool complete XLD evaluation summaries without changing any trajectory.
+
+    A raw collector summary does not contain the requested episode horizon.
+    Callers must supply only successful complete windows. Explicit failure or
+    incomplete markers, and any supplied episode_horizon_days, are validated.
+    Existing aggregate summaries can be pooled again without losing counts.
+    """
+    try:
+        if not isinstance(summaries, (list, tuple)) or not summaries:
+            raise ValueError('XLD aggregation requires a nonempty list of complete summaries')
+        identity = None
+        totals = dict(completed_steps=0, active_days=0, violation_count=0)
+        counts = dict.fromkeys(CLASSIFICATION_DEFINITIONS, 0)
+        component_count, window_ids, seeds, rounds = 0, [], set(), set()
+        for summary in summaries:
+            if not isinstance(summary, dict):
+                raise ValueError('Every XLD summary must be a nonnull dictionary')
+            schema = summary['schema']
+            if schema not in ('xld_dispatch_v1', _XLD_AGGREGATE_SCHEMA):
+                raise ValueError('Unknown XLD summary schema')
+            if summary.get('status', 'ok') != 'ok':
+                raise ValueError('Failed or partial XLD summaries cannot be pooled as complete windows')
+            for name in ('complete', 'completed'):
+                if name in summary and (not isinstance(summary[name], (bool, np.bool_)) or
+                                        not bool(summary[name])):
+                    raise ValueError('Incomplete XLD summaries cannot be pooled')
+            threshold = _number(summary['guaranteed_output_mw'], 'guaranteed_output_mw')
+            if threshold < 0.:
+                raise ValueError('guaranteed_output_mw cannot be negative')
+            bins = _integer(summary['action_bins'], 'action_bins', 2)
+            head_model, phase = summary['head_model'], summary['phase']
+            if summary['reservoir_id'] != 'XLD':
+                raise ValueError('Only XLD summaries can be pooled')
+            if head_model not in ('fixed', 'storage_sensitivity'):
+                raise ValueError('Unknown XLD head model')
+            if phase not in ('training_evaluation', 'evaluation'):
+                raise ValueError('XLD summaries must identify one evaluation phase')
+            current_identity = ('XLD', threshold, bins, head_model, phase)
+            if identity is None:
+                identity = current_identity
+            elif identity != current_identity:
+                raise ValueError('XLD summaries have inconsistent reservoir, threshold, grid, head model or phase')
+            days = _integer(summary['completed_steps'], 'completed_steps', 1)
+            active = _integer(summary['active_days'], 'active_days')
+            violations = _integer(summary['violation_count'], 'violation_count')
+            if not 0 <= violations <= active <= days:
+                raise ValueError('XLD day and violation counts are inconsistent')
+            if 'episode_horizon_days' in summary:
+                if _integer(summary['episode_horizon_days'], 'episode_horizon_days', 1) != days:
+                    raise ValueError('XLD summary is shorter than its complete episode horizon')
+            classes = summary['classification_counts']
+            if not isinstance(classes, dict) or set(classes) != set(CLASSIFICATION_DEFINITIONS):
+                raise ValueError('XLD classification counts have missing or unknown classes')
+            classes = {name: _integer(value, 'classification_counts.'+name)
+                       for name, value in classes.items()}
+            if sum(classes.values()) != days:
+                raise ValueError('XLD classifications do not reconcile with completed steps')
+            if active != (days if threshold > 0. else 0):
+                raise ValueError('XLD active-day count disagrees with the effective requirement')
+            if classes['requirement_inactive'] != days-active or classes['no_violation'] != active-violations:
+                raise ValueError('XLD inactive/nonviolating classifications disagree with service counts')
+            groups = {name: sum(classes[term] for term in terms)
+                      for name, terms in _XLD_AGGREGATE_GROUPS.items()}
+            if sum(groups.values()) != violations:
+                raise ValueError('XLD violating classifications do not reconcile with violation count')
+            _summary_fraction(summary['violation_rate'],
+                              violations/active if active else None, 'violation_rate')
+            if schema == _XLD_AGGREGATE_SCHEMA or 'group_counts' in summary:
+                supplied = summary['group_counts']
+                if not isinstance(supplied, dict) or set(supplied) != set(groups):
+                    raise ValueError('XLD aggregate groups have missing or unknown classes')
+                if any(_integer(supplied[name], 'group_counts.'+name) != groups[name] for name in groups):
+                    raise ValueError('XLD aggregate groups disagree with classification counts')
+            if schema == _XLD_AGGREGATE_SCHEMA or 'group_fractions_among_violations' in summary:
+                fractions = summary['group_fractions_among_violations']
+                if not isinstance(fractions, dict) or set(fractions) != set(groups):
+                    raise ValueError('XLD aggregate fractions have missing or unknown groups')
+                for name in groups:
+                    _summary_fraction(fractions[name], groups[name]/violations if violations else None,
+                                      'group_fractions_among_violations.'+name)
+            if schema == _XLD_AGGREGATE_SCHEMA:
+                components = _integer(summary['component_count'], 'component_count', 1)
+                windows = _summary_identity_list(summary['window_ids'], 'window_ids', text=True)
+                if len(windows) != components:
+                    raise ValueError('XLD aggregate window identities do not match its component count')
+                source_seeds = _summary_identity_list(summary['seeds'], 'seeds')
+                source_rounds = _summary_identity_list(summary['evaluation_rounds'], 'evaluation_rounds')
+            else:
+                components = 1
+                windows = _summary_identity_list([summary['window_id']], 'window_id', text=True)
+                source_seeds = [_integer(summary['seed'], 'seed')]
+                source_rounds = [_integer(summary['evaluation_round'], 'evaluation_round')]
+            component_count += components
+            window_ids.extend(windows)
+            seeds.update(source_seeds)
+            rounds.update(source_rounds)
+            totals['completed_steps'] += days
+            totals['active_days'] += active
+            totals['violation_count'] += violations
+            for name in counts:
+                counts[name] += classes[name]
+
+        groups = {name: sum(counts[term] for term in terms)
+                  for name, terms in _XLD_AGGREGATE_GROUPS.items()}
+        violations, active = totals['violation_count'], totals['active_days']
+        return dict(schema=_XLD_AGGREGATE_SCHEMA, status='ok', reservoir_id=identity[0],
+            guaranteed_output_mw=identity[1], action_bins=identity[2], head_model=identity[3],
+            phase=identity[4], component_count=component_count, window_ids=window_ids,
+            seeds=sorted(seeds), evaluation_rounds=sorted(rounds), **totals,
+            violation_rate=violations/active if active else None,
+            classification_counts=counts, classification_definitions=dict(CLASSIFICATION_DEFINITIONS),
+            group_counts=groups,
+            group_fractions_among_violations={name: value/violations if violations else None
+                                             for name, value in groups.items()},
+            aggregation='pooled counts over complete supplied XLD windows; rates are ratios of pooled counts',
+            group_denominator='observed XLD guaranteed-output violations, not all XLD days or all-reservoir days',
+            counterfactual_scope='same starting state, current external inflows and next-state bounds; '
+                'only XLD command changes and the other four original sampled commands stay fixed; '
+                'XLD inflow stays fixed, while downstream realized releases and power may change',
+            limitation='A feasible discrete alternative is not proof of a globally wrong action or a better '
+                'multi-day policy. Same-state continuous unattainability is conditional, not a proof of '
+                'unavoidable hydrological shortage or impossibility under earlier storage decisions or '
+                'different upstream cooperation. Alternative commands may change other service violations. '
+                'The four physical classes are ordered attribution labels; overlapping proof flags are not added.')
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
+        raise XLDDispatchDiagnosticError('Invalid complete XLD summary aggregation: '+str(exc)) from exc

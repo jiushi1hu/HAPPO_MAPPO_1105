@@ -169,6 +169,37 @@ def write_log(path, algorithm, inline_context, labeled=True):
 
 
 class ComparisonIdentityTest(unittest.TestCase):
+    def test_shared_mappo_architecture_is_the_only_allowed_settings_exception(self):
+        data = payload()
+        happo, mappo = [entry['payload'] for entry in data['runs']]
+        happo['comparison_context']['shared_settings']['algo']['share_param'] = False
+        mappo['comparison_context']['shared_settings']['algo']['share_param'] = True
+        mappo['actor_architecture'] = dict(parameter_sharing=True, network_count=1,
+            optimizer_count=1, raw_observation_dim=15, network_observation_dim=20,
+            identity_features='one_hot_reservoir_id', critic_output_dim=6)
+        compare.validate_comparison(data)
+        self.assertTrue(mappo['comparison_context']['shared_settings']['algo']['share_param'])
+        altered = copy.deepcopy(data)
+        altered['runs'][1]['payload']['comparison_context']['shared_settings']['algo']['gamma'] = .99
+        with self.assertRaisesRegex(ValueError, 'settings'):
+            compare.validate_comparison(altered)
+        altered = copy.deepcopy(data)
+        altered['runs'][1]['payload']['actor_architecture']['network_observation_dim'] = 15
+        with self.assertRaisesRegex(ValueError, 'architecture'):
+            compare.validate_comparison(altered)
+        happo['actor_architecture'] = dict(mappo['actor_architecture'])
+        with self.assertRaisesRegex(ValueError, 'Only MAPPO'):
+            compare.validate_comparison(data)
+
+    def test_context_fallback_and_inline_normalization_remove_only_share_param(self):
+        settings = context()
+        settings['shared_settings']['algo'].update(share_param=True, entropy_coef=.001)
+        original = copy.deepcopy(settings)
+        normalized = compare.context_from_configuration({'comparison_context': settings})
+        self.assertNotIn('share_param', normalized['shared_settings']['algo'])
+        self.assertEqual(normalized['shared_settings']['algo']['entropy_coef'], .001)
+        self.assertEqual(settings, original)
+
     def test_unlabeled_legacy_log_cannot_be_claimed_as_mappo(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'legacy.jsonl'
